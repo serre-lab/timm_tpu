@@ -31,6 +31,8 @@ from timm.utils import ApexScaler, NativeScaler
 
 # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
+from sltimmv2.models import *
+
 
 parser = ArgumentParser(description = 'Pytorch Imagenet Training')
 
@@ -205,6 +207,7 @@ dataset_eval = create_dataset(
 ## create model
 in_chans = 3
 
+## load custom model
 model = create_model(
     args.model_name,
     pretrained=args.pretrained,
