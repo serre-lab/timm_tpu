@@ -415,4 +415,7 @@ def main(model, loader_train, loader_eval):
 
 
 if __name__ == '__main__':
-    main(model, loader_train, loader_eval)
+    
+    tpu_cores_per_node = 8
+    xmp.spawn(main, args=(model, loader_train, loader_eval), nprocs=tpu_cores_per_node)
+    # main(model, loader_train, loader_eval)
