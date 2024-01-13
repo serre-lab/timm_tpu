@@ -328,7 +328,6 @@ print('create test loader done')
 
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
-    pdb.set_trace()
     model.train()
     optimizer.zero_grad()
     losses_m = utils.AverageMeter()
@@ -345,6 +344,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
+        pdb.set_trace()
         loss.backward()
         print(loss.item(), input.size)
         losses_m.update(loss.item(), input.size[0])
