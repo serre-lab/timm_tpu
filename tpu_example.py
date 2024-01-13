@@ -19,6 +19,7 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
+import pdb
 
 from timm import utils
 from timm.data import create_dataset, create_loader, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset
@@ -327,7 +328,7 @@ print('create test loader done')
 
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
-
+    pdb.set_trace()
     model.train()
     optimizer.zero_grad()
     losses_m = utils.AverageMeter()
