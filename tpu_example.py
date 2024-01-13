@@ -34,6 +34,7 @@ try:
     import torch_xla.distributed.xla_multiprocessing as xmp
     import torch_xla.distributed.parallel_loader as pl
     import torch_xla.utils.utils as xu
+    print('Xla import done')
 except ImportError:
     xm = xmp = pl = xu = None
 
@@ -231,7 +232,7 @@ model = create_model(
     # scriptable=args.torchscript,
     checkpoint_path=args.initial_checkpoint,
 )
-
+print('Create model done')
 
 ## create data loader
 # setup mixup / cutmix
@@ -299,6 +300,7 @@ loader_train = create_loader(
     # worker_seeding=args.worker_seeding,
 )
 
+print('create train loader done')
 
 eval_workers = args.workers
 if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
@@ -321,6 +323,7 @@ loader_eval = create_loader(
     device=device,
     )
 
+print('create test loader done')
 
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
