@@ -89,7 +89,7 @@ parser.add_argument('--opt-kwargs', nargs='*', default={}, action=utils.ParseKwa
 ## Learning rate parameters
 parser.add_argument('--sched', type=str, default='cosine', metavar='SCHEDULER',
                    help='LR scheduler (default: "step"')
-parser.add_argument('--lr', type=float, default=None, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                    help='learning rate, overrides lr-base if set (default: None)')
 
 # parser.add_argument('Augmentation and regularization parameters')
