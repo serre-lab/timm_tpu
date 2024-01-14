@@ -30,7 +30,7 @@ from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
-from . import sl_utils
+import sl_utils
 
 try:
     import torch_xla.core.xla_model as xm
