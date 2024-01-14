@@ -271,7 +271,7 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
 
 ## main function
 
-def main(model, loader_train, loader_eval):
+def main():
 
     sl_utils.init_distributed_mode(args)
 
