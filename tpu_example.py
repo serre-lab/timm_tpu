@@ -30,6 +30,8 @@ from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
+from timm_tpu import sl_utils
+
 try:
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.xla_multiprocessing as xmp
@@ -48,7 +50,7 @@ parser.add_argument('--val_split', default = 'val', help = 'Validation folder na
 parser.add_argument('--batch_size', type = int, default = 128)
 parser.add_argument('--dataset_download', default = False)
 parser.add_argument('--validation_batch_size', type = int, default = 128)
-parser.add_argument('--tpu', default = False, help = 'Set tpu boolean')
+# parser.add_argument('--tpu', default = True, help = 'Set tpu boolean')
 
 ## model parameters
 parser.add_argument('--model_name', help = 'name of the model', default = 'resnet50')
@@ -182,22 +184,30 @@ parser.add_argument('--use-multi-epochs-loader', action='store_true', default=Fa
 parser.add_argument('--log-wandb', action='store_true', default=False,
                    help='log training and validation metrics to wandb')
 
-args = parser.parse_args()
-device = utils.init_distributed_device(args)
+# distributed training parameters
+parser.add_argument('--world_size', default=1, type=int,
+                    help='number of distributed processes')
+parser.add_argument('--local_rank', default=-1, type=int)
+parser.add_argument('--dist_on_itp', action='store_true')
+parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+parser.add_argument('--seed', default = 42, help = 'for reproducibility')
 
-if args.tpu:
-    XLA_CFG = {"is_xla": False, "logging_interval": 20}
+# PyTorch XLA parameters
+parser.add_argument('--use_xla', default=False, action='store_true',
+                    help='Use PyTorch XLA on TPUs')
+#CCE loss
+parser.add_argument('--use_cce', default=False, action='store_true',
+                    help='Use PyTorch XLA on TPUs')
+
+
+args = parser.parse_args()
+
+sl_utils.init_distributed_mode(args)
+
+if sl_utils.XLA_CFG['is_xla']:
     device = xm.xla_device()
 
-
 _logger = logging.getLogger('train')
-
-# class PrepareDataset():
-#     def __init__(self):
-#         return
-
-#     def __getitem__():
-#         return 
 
 dataset_train = create_dataset(
         args.data,
@@ -236,7 +246,7 @@ model = create_model(
 print('Create model done')
 
 ## create data loader
-# setup mixup / cutmix
+# setup mixup / cutmix augmentation strategies
 num_aug_splits = 0
 collate_fn = None
 mixup_fn = None
@@ -326,6 +336,11 @@ loader_eval = create_loader(
 
 print('create test loader done')
 
+
+if sl_utils.XLA_CFG["is_xla"]:
+    data_loader_train = pl.MpDeviceLoader(loader_train, device)
+    data_loader_val = pl.MpDeviceLoader(loader_eval, device)
+
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
     model.train()
@@ -397,7 +412,9 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
 
 def main(model, loader_train, loader_eval):
 
-    num_epochs = 10
+    # #set seed
+    # seed = args.seed + sl_utils.get_rank()
+    # torch.manual_seed(seed)
 
     optimizer = create_optimizer_v2(
         model,
@@ -409,7 +426,7 @@ def main(model, loader_train, loader_eval):
 
     model = model.to(device)
 
-    for epoch in range(num_epochs):
+    for epoch in range(10): ## iterate through epochs
         train_metrics = train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
         val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
