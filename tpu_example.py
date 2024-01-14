@@ -30,7 +30,7 @@ from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
-from timm_tpu import sl_utils
+from . import sl_utils
 
 try:
     import torch_xla.core.xla_model as xm
@@ -201,145 +201,7 @@ parser.add_argument('--use_cce', default=False, action='store_true',
 
 
 args = parser.parse_args()
-
-sl_utils.init_distributed_mode(args)
-
-if sl_utils.XLA_CFG['is_xla']:
-    device = xm.xla_device()
-
 _logger = logging.getLogger('train')
-
-dataset_train = create_dataset(
-        args.data,
-        root=args.data_dir,
-        split=args.train_split,
-        is_training=True,
-        batch_size=args.batch_size,
-        seed=1,
-    )
-
-dataset_eval = create_dataset(
-    args.data,
-    root=args.data_dir,
-    split=args.val_split,
-    is_training=False,
-    batch_size=args.batch_size,
-)
-
-## create model
-in_chans = 3
-
-model = create_model(
-    args.model_name,
-    pretrained=args.pretrained,
-    in_chans=in_chans,
-    num_classes=args.num_classes,
-    drop_rate=args.drop,
-    drop_path_rate=args.drop_path,
-    drop_block_rate=args.drop_block,
-    global_pool=args.gp,
-    bn_momentum=args.bn_momentum,
-    bn_eps=args.bn_eps,
-    # scriptable=args.torchscript,
-    checkpoint_path=args.initial_checkpoint,
-)
-print('Create model done')
-
-## create data loader
-# setup mixup / cutmix augmentation strategies
-num_aug_splits = 0
-collate_fn = None
-mixup_fn = None
-mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
-if mixup_active:
-    mixup_args = dict(
-        mixup_alpha=args.mixup,
-        cutmix_alpha=args.cutmix,
-        cutmix_minmax=args.cutmix_minmax,
-        prob=args.mixup_prob,
-        switch_prob=args.mixup_switch_prob,
-        mode=args.mixup_mode,
-        label_smoothing=args.smoothing,
-        num_classes=args.num_classes
-    )
-    if args.prefetcher:
-        assert not num_aug_splits  # collate conflict (need to support deinterleaving in collate mixup)
-        collate_fn = FastCollateMixup(**mixup_args)
-    else:
-        mixup_fn = Mixup(**mixup_args)
-
-args.prefetcher = not args.no_prefetcher
-# wrap dataset in AugMix helper
-if num_aug_splits > 1:
-    dataset_train = AugMixDataset(dataset_train, num_splits=num_aug_splits)
-
-# create data loaders w/ augmentation pipeiine
-data_config = resolve_data_config(vars(args), model=model, verbose=utils.is_primary(args))
-train_interpolation = args.train_interpolation
-if args.no_aug or not train_interpolation:
-    train_interpolation = data_config['interpolation']
-
-
-loader_train = create_loader(
-    dataset_train,
-    input_size=data_config['input_size'],
-    batch_size=args.batch_size,
-    is_training=True,
-    use_prefetcher=args.prefetcher,
-    no_aug=args.no_aug,
-    re_prob=args.reprob,
-    re_mode=args.remode,
-    re_count=args.recount,
-    re_split=args.resplit,
-    scale=args.scale,
-    ratio=args.ratio,
-    hflip=args.hflip,
-    vflip=args.vflip,
-    color_jitter=args.color_jitter,
-    auto_augment=args.aa,
-    num_aug_repeats=args.aug_repeats,
-    num_aug_splits=num_aug_splits,
-    interpolation=train_interpolation,
-    mean=data_config['mean'],
-    std=data_config['std'],
-    num_workers=args.workers,
-    distributed=args.distributed,
-    collate_fn=collate_fn,
-    pin_memory=args.pin_mem,
-    device=device,
-    use_multi_epochs_loader=args.use_multi_epochs_loader,
-    # worker_seeding=args.worker_seeding,
-)
-
-print('create train loader done')
-
-eval_workers = args.workers
-if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
-    # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
-    eval_workers = min(2, args.workers)
-
-loader_eval = create_loader(
-    dataset_eval,
-    input_size=data_config['input_size'],
-    batch_size=args.validation_batch_size or args.batch_size,
-    is_training=False,
-    use_prefetcher=args.prefetcher,
-    interpolation=data_config['interpolation'],
-    mean=data_config['mean'],
-    std=data_config['std'],
-    num_workers=eval_workers,
-    distributed=args.distributed,
-    crop_pct=data_config['crop_pct'],
-    pin_memory=args.pin_mem,
-    device=device,
-    )
-
-print('create test loader done')
-
-
-if sl_utils.XLA_CFG["is_xla"]:
-    data_loader_train = pl.MpDeviceLoader(loader_train, device)
-    data_loader_val = pl.MpDeviceLoader(loader_eval, device)
 
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
@@ -361,7 +223,6 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         pdb.set_trace()
         loss.backward()
-        print(loss.item(), input.size)
         losses_m.update(loss.item(), input.size[0])
         top1_m.update(acc1)
         top5_m.update(acc)
@@ -412,17 +273,152 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
 
 def main(model, loader_train, loader_eval):
 
-    # #set seed
-    # seed = args.seed + sl_utils.get_rank()
-    # torch.manual_seed(seed)
+    sl_utils.init_distributed_mode(args)
 
+    if sl_utils.XLA_CFG['is_xla']:
+        device = xm.xla_device()
+    
+    print('Device Used:', device)
+
+    args.prefetcher = not args.no_prefetcher
+
+    dataset_train = create_dataset(
+            args.data,
+            root=args.data_dir,
+            split=args.train_split,
+            is_training=True,
+            batch_size=args.batch_size,
+            seed=1,
+        )
+
+    dataset_eval = create_dataset(
+        args.data,
+        root=args.data_dir,
+        split=args.val_split,
+        is_training=False,
+        batch_size=args.batch_size,
+    )
+
+    ## create model
+    in_chans = 3
+
+    model = create_model(
+        args.model_name,
+        pretrained=args.pretrained,
+        in_chans=in_chans,
+        num_classes=args.num_classes,
+        drop_rate=args.drop,
+        drop_path_rate=args.drop_path,
+        drop_block_rate=args.drop_block,
+        global_pool=args.gp,
+        bn_momentum=args.bn_momentum,
+        bn_eps=args.bn_eps,
+        # scriptable=args.torchscript,
+        checkpoint_path=args.initial_checkpoint,
+    )
+    print('Create model done')
+
+    ## create data loader
+    # setup mixup / cutmix augmentation strategies
+    num_aug_splits = 0
+    collate_fn = None
+    mixup_fn = None
+    mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
+    if mixup_active:
+        mixup_args = dict(
+            mixup_alpha=args.mixup,
+            cutmix_alpha=args.cutmix,
+            cutmix_minmax=args.cutmix_minmax,
+            prob=args.mixup_prob,
+            switch_prob=args.mixup_switch_prob,
+            mode=args.mixup_mode,
+            label_smoothing=args.smoothing,
+            num_classes=args.num_classes
+        )
+        if args.prefetcher:
+            assert not num_aug_splits  # collate conflict (need to support deinterleaving in collate mixup)
+            collate_fn = FastCollateMixup(**mixup_args)
+        else:
+            mixup_fn = Mixup(**mixup_args)
+
+    # wrap dataset in AugMix helper
+    if num_aug_splits > 1:
+        dataset_train = AugMixDataset(dataset_train, num_splits=num_aug_splits)
+
+    # create data loaders w/ augmentation pipeiine
+    data_config = resolve_data_config(vars(args), model=model, verbose=utils.is_primary(args))
+    train_interpolation = args.train_interpolation
+    if args.no_aug or not train_interpolation:
+        train_interpolation = data_config['interpolation']
+
+
+    loader_train = create_loader(
+        dataset_train,
+        input_size=data_config['input_size'],
+        batch_size=args.batch_size,
+        is_training=True,
+        use_prefetcher=args.prefetcher,
+        no_aug=args.no_aug,
+        re_prob=args.reprob,
+        re_mode=args.remode,
+        re_count=args.recount,
+        re_split=args.resplit,
+        scale=args.scale,
+        ratio=args.ratio,
+        hflip=args.hflip,
+        vflip=args.vflip,
+        color_jitter=args.color_jitter,
+        auto_augment=args.aa,
+        num_aug_repeats=args.aug_repeats,
+        num_aug_splits=num_aug_splits,
+        interpolation=train_interpolation,
+        mean=data_config['mean'],
+        std=data_config['std'],
+        num_workers=args.workers,
+        distributed=args.distributed,
+        collate_fn=collate_fn,
+        pin_memory=args.pin_mem,
+        device=device,
+        use_multi_epochs_loader=args.use_multi_epochs_loader,
+        # worker_seeding=args.worker_seeding,
+    )
+
+    print('create train loader done')
+
+    eval_workers = args.workers
+    if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
+        # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
+        eval_workers = min(2, args.workers)
+
+    loader_eval = create_loader(
+        dataset_eval,
+        input_size=data_config['input_size'],
+        batch_size=args.validation_batch_size or args.batch_size,
+        is_training=False,
+        use_prefetcher=args.prefetcher,
+        interpolation=data_config['interpolation'],
+        mean=data_config['mean'],
+        std=data_config['std'],
+        num_workers=eval_workers,
+        distributed=args.distributed,
+        crop_pct=data_config['crop_pct'],
+        pin_memory=args.pin_mem,
+        device=device,
+        )
+
+    print('create test loader done')
+
+
+    if sl_utils.XLA_CFG["is_xla"]:
+        loader_train = pl.MpDeviceLoader(loader_train, device)
+        loader_eval = pl.MpDeviceLoader(loader_eval, device)
+    
     optimizer = create_optimizer_v2(
         model,
         **optimizer_kwargs(cfg=args),
         **args.opt_kwargs,
     )
     loss_fn = nn.CrossEntropyLoss().to(device)
-    print('Iam here')
 
     model = model.to(device)
 
@@ -434,5 +430,4 @@ def main(model, loader_train, loader_eval):
 if __name__ == '__main__':
     
     tpu_cores_per_node = 8
-    xmp.spawn(main, args=(model, loader_train, loader_eval), nprocs=tpu_cores_per_node)
-    # main(model, loader_train, loader_eval)
+    xmp.spawn(main, args=(), nprocs=tpu_cores_per_node)
