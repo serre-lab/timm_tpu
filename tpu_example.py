@@ -200,9 +200,6 @@ parser.add_argument('--use_cce', default=False, action='store_true',
                     help='Use PyTorch XLA on TPUs')
 
 
-args = parser.parse_args()
-_logger = logging.getLogger('train')
-
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
     model.train()
@@ -271,7 +268,7 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
 
 ## main function
 
-def main():
+def main(args):
 
     sl_utils.init_distributed_mode(args)
 
@@ -429,5 +426,8 @@ def main():
 
 if __name__ == '__main__':
     
+    opts = parser.parse_args()
+    _logger = logging.getLogger('train')
+
     tpu_cores_per_node = 8
-    xmp.spawn(main, args=(), nprocs=tpu_cores_per_node)
+    xmp.spawn(main, args=(opts,), nprocs=tpu_cores_per_node)
