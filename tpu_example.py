@@ -31,6 +31,7 @@ from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
 import sl_utils
+from sl_utils import NativeScalerWithGradNormCount as NativeScaler
 
 try:
     import torch_xla.core.xla_model as xm
@@ -201,12 +202,16 @@ parser.add_argument('--use_cce', default=False, action='store_true',
 
 
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
+def train_one_epoch(model, epoch, train_dataloader, loss_scaler, optimizer, device, lr_scheduler = None, max_norm: float = 0):
+    
     model.train()
     optimizer.zero_grad()
+
     losses_m = utils.AverageMeter()
     top1_m = utils.AverageMeter()
     top5_m = utils.AverageMeter()
+
+    loss_fn = nn.CrossEntropyLoss().to(device)
 
     lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
     lr = sum(lrl) / len(lrl)
@@ -219,7 +224,8 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         pdb.set_trace()
-        loss.backward()
+        grad_norm = loss_scaler(loss, optimizer, clip_grad = max_norm)
+        
         losses_m.update(loss.item(), input.size[0])
         top1_m.update(acc1)
         top5_m.update(acc)
@@ -415,7 +421,6 @@ def main(rank, args):
         **optimizer_kwargs(cfg=args),
         **args.opt_kwargs,
     )
-    loss_fn = nn.CrossEntropyLoss().to(device)
 
     model = model.to(device)
 
