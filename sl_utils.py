@@ -207,6 +207,7 @@ def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_posit
             model.__class__.__name__, ignore_missing_keys))
     if len(error_msgs) > 0:
         print('\n'.join(error_msgs))
+<<<<<<< HEAD
 
 
 class NativeScalerWithGradNormCount:
@@ -271,3 +272,5 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
     print("akash: lenSched", len(schedule), "epochs:", epochs, "niter_per_ep:", niter_per_ep)
     assert len(schedule) == epochs * niter_per_ep
     return schedule
+=======
+>>>>>>> c161767b93b0d30ff17ae5c80f4936c7ba1d4168
