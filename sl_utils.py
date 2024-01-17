@@ -270,5 +270,3 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
     print("akash: lenSched", len(schedule), "epochs:", epochs, "niter_per_ep:", niter_per_ep)
     assert len(schedule) == epochs * niter_per_ep
     return schedule
-=======
->>>>>>> c161767b93b0d30ff17ae5c80f4936c7ba1d4168
