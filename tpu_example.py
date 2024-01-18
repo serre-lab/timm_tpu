@@ -280,7 +280,7 @@ def main(rank, args):
         device = xm.xla_device()
     print('Device Used:', device)
 
-    seed = args.seed + utils.get_rank()
+    seed = args.seed + sl_utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -425,7 +425,7 @@ def main(rank, args):
         sl_utils.broadcast_xla_master_model_param(model, args)
 
     loss_fn = nn.CrossEntropyLoss()
-    
+
     for epoch in range(10): ## iterate through epochs
         train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
         # val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
