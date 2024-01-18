@@ -1,7 +1,5 @@
 import argparse
 import logging
-import os
-import time
 from collections import OrderedDict
 from contextlib import suppress
 from datetime import datetime
@@ -10,15 +8,12 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 from collections import deque
 from tqdm import tqdm
+import numpy as np 
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-import torchvision.utils
-import yaml
-from torch.nn.parallel import DistributedDataParallel as NativeDDP
-import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
+
+
 import pdb
 
 from timm import utils
@@ -200,9 +195,8 @@ parser.add_argument('--use_xla', default=False, action='store_true',
 parser.add_argument('--use_cce', default=False, action='store_true',
                     help='Use PyTorch XLA on TPUs')
 
-
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_scaler, optimizer, device, lr_scheduler = None, max_norm: float = 0):
+def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, max_norm: float = 0):
     
     model.train()
     optimizer.zero_grad()
@@ -224,20 +218,24 @@ def train_one_epoch(model, epoch, train_dataloader, loss_scaler, optimizer, devi
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         pdb.set_trace()
-        grad_norm = loss_scaler(loss, optimizer, clip_grad = max_norm)
+        
+        loss.backward()
+        xm.reduce_gradients(optimizer)
+        optimizer.step()
         
         losses_m.update(loss.item(), input.size[0])
         top1_m.update(acc1)
         top5_m.update(acc)
         optimizer.step()
+        
         if lr_scheduler:
             lr_scheduler.step()
 
-    _logger.info(
-                    f'Train: {epoch}'
-                    f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                    f'LR: {lr:.3e}  '
-                )
+    # _logger.info(
+    #                 f'Train: {epoch}'
+    #                 f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
+    #                 f'LR: {lr:.3e}  '
+    #             )
 
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
@@ -280,11 +278,13 @@ def main(rank, args):
 
     if sl_utils.XLA_CFG['is_xla']:
         device = xm.xla_device()
-    
     print('Device Used:', device)
 
-    args.prefetcher = not args.no_prefetcher
+    seed = args.seed + utils.get_rank()
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
+    args.prefetcher = not args.no_prefetcher
     dataset_train = create_dataset(
             args.data,
             root=args.data_dir,
@@ -293,7 +293,6 @@ def main(rank, args):
             batch_size=args.batch_size,
             seed=1,
         )
-
     dataset_eval = create_dataset(
         args.data,
         root=args.data_dir,
@@ -304,7 +303,6 @@ def main(rank, args):
 
     ## create model
     in_chans = 3
-
     model = create_model(
         args.model_name,
         pretrained=args.pretrained,
@@ -383,7 +381,7 @@ def main(rank, args):
         pin_memory=args.pin_mem,
         device=device,
         use_multi_epochs_loader=args.use_multi_epochs_loader,
-        # worker_seeding=args.worker_seeding,
+        worker_seeding=seed,
     )
 
     print('create train loader done')
@@ -407,14 +405,8 @@ def main(rank, args):
         crop_pct=data_config['crop_pct'],
         pin_memory=args.pin_mem,
         device=device,
+        worker_seeding=seed
         )
-
-    print('create test loader done')
-
-
-    if sl_utils.XLA_CFG["is_xla"]:
-        loader_train = pl.MpDeviceLoader(loader_train, device)
-        loader_eval = pl.MpDeviceLoader(loader_eval, device)
     
     optimizer = create_optimizer_v2(
         model,
@@ -422,11 +414,21 @@ def main(rank, args):
         **args.opt_kwargs,
     )
 
+    if sl_utils.XLA_CFG["is_xla"]:
+        loader_train = pl.MpDeviceLoader(loader_train, device)
+        loader_eval = pl.MpDeviceLoader(loader_eval, device)
+    
+
     model = model.to(device)
 
+    if sl_utils.XLA_CFG["is_xla"]:
+        sl_utils.broadcast_xla_master_model_param(model, args)
+
+    loss_fn = nn.CrossEntropyLoss()
+    
     for epoch in range(10): ## iterate through epochs
-        train_metrics = train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
-        val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
+        train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
+        # val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
 
 if __name__ == '__main__':
