@@ -388,7 +388,7 @@ def main(rank, args):
         pin_memory=args.pin_mem,
         device=device,
         use_multi_epochs_loader=args.use_multi_epochs_loader,
-        worker_seeding=seed,
+        worker_seeding='all',
         shuffle = True
     )
 
@@ -414,7 +414,7 @@ def main(rank, args):
         crop_pct=data_config['crop_pct'],
         pin_memory=args.pin_mem,
         device=device,
-        worker_seeding=seed,
+        worker_seeding='all',
         shuffle=False
         )
     
