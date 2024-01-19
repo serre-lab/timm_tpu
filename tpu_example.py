@@ -17,7 +17,8 @@ import torch.nn as nn
 import pdb
 
 from timm import utils
-from timm.data import create_dataset, create_loader, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset
+
+from timm.data import create_dataset, resolve_data_config, Mixup, FastCollateMixup, AugMixDataset
 from timm.layers import convert_splitbn_model, convert_sync_batchnorm, set_fast_norm
 from timm.loss import JsdCrossEntropy, SoftTargetCrossEntropy, BinaryCrossEntropy, LabelSmoothingCrossEntropy
 from timm.models import create_model, safe_model_name, resume_checkpoint, load_checkpoint, model_parameters
@@ -27,7 +28,7 @@ from timm.utils import ApexScaler, NativeScaler
 
 import sl_utils
 from sl_utils import NativeScalerWithGradNormCount as NativeScaler
-
+from sltimmv2.data import create_loader
 try:
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.xla_multiprocessing as xmp
