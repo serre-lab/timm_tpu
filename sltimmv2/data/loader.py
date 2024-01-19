@@ -213,7 +213,6 @@ def create_loader(
         distributed: bool = False,
         crop_pct: Optional[float] = None,
         crop_mode: Optional[str] = None,
-        crop_border_pixels: Optional[int] = None,
         collate_fn: Optional[Callable] = None,
         pin_memory: bool = False,
         fp16: bool = False,  # deprecated, use img_dtype

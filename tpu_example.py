@@ -292,7 +292,7 @@ def main(rank, args):
             split=args.train_split,
             is_training=True,
             batch_size=args.batch_size,
-            seed=1,
+            seed=seed,
         )
     dataset_eval = create_dataset(
         args.data,
@@ -300,6 +300,7 @@ def main(rank, args):
         split=args.val_split,
         is_training=False,
         batch_size=args.batch_size,
+        seed = seed,
     )
 
     ## create model
@@ -376,7 +377,7 @@ def main(rank, args):
         interpolation=train_interpolation,
         mean=data_config['mean'],
         std=data_config['std'],
-        num_workers=args.workers,
+        # num_workers=args.workers, ## the parameter sets with get_world_size inside the function
         distributed=args.distributed,
         collate_fn=collate_fn,
         pin_memory=args.pin_mem,
@@ -388,10 +389,11 @@ def main(rank, args):
 
     print('create train loader done')
 
-    eval_workers = args.workers
-    if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
-        # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
-        eval_workers = min(2, args.workers)
+    # eval_workers = num_workers
+    # ============================================ FIX LATER ===============================================
+    # if args.distributed and ('tfds' in args.data or 'wds' in args.data):
+    #     # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
+    #     eval_workers = min(2, args.workers)
 
     loader_eval = create_loader(
         dataset_eval,
@@ -402,7 +404,7 @@ def main(rank, args):
         interpolation=data_config['interpolation'],
         mean=data_config['mean'],
         std=data_config['std'],
-        num_workers=eval_workers,
+        # num_workers=eval_workers, # the parameter sets with get_world_size inside the function
         distributed=args.distributed,
         crop_pct=data_config['crop_pct'],
         pin_memory=args.pin_mem,
@@ -411,22 +413,32 @@ def main(rank, args):
         shuffle=False
         )
     
+    print('create val_loader done')
+
     optimizer = create_optimizer_v2(
         model,
         **optimizer_kwargs(cfg=args),
         **args.opt_kwargs,
     )
 
+    print('optimizer done')
+
     if sl_utils.XLA_CFG["is_xla"]:
         loader_train = pl.MpDeviceLoader(loader_train, device)
         loader_eval = pl.MpDeviceLoader(loader_eval, device)
     
 
+    print('Loader deployed on tpu')
+
     model = model.to(device)
+
+    print('model deployed on tpu')
 
     if sl_utils.XLA_CFG["is_xla"]:
         sl_utils.broadcast_xla_master_model_param(model, args)
 
+    print('model parameters broadcasted')
+    
     loss_fn = nn.CrossEntropyLoss()
 
     for epoch in range(10): ## iterate through epochs
