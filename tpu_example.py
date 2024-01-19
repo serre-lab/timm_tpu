@@ -382,6 +382,7 @@ def main(rank, args):
         device=device,
         use_multi_epochs_loader=args.use_multi_epochs_loader,
         worker_seeding=seed,
+        shuffle = True
     )
 
     print('create train loader done')
@@ -405,7 +406,8 @@ def main(rank, args):
         crop_pct=data_config['crop_pct'],
         pin_memory=args.pin_mem,
         device=device,
-        worker_seeding=seed
+        worker_seeding=seed,
+        shuffle=False
         )
     
     optimizer = create_optimizer_v2(
