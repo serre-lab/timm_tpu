@@ -203,9 +203,6 @@ def create_loader(
         hflip: float = 0.5,
         vflip: float = 0.,
         color_jitter: float = 0.4,
-        color_jitter_prob: Optional[float] = None,
-        grayscale_prob: float = 0.,
-        gaussian_blur_prob: float = 0.,
         auto_augment: Optional[str] = None,
         num_aug_repeats: int = 0,
         num_aug_splits: int = 0,
@@ -227,8 +224,14 @@ def create_loader(
         persistent_workers: bool = True,
         worker_seeding: str = 'all',
         tf_preprocessing: bool = False,
-        shuffle: bool = False
-):
+        shuffle: bool = False,
+        
+        ##deprecated
+        # color_jitter_prob: Optional[float] = None,
+        # grayscale_prob: float = 0.,
+        # gaussian_blur_prob: float = 0.,
+        #crop_border_pixels: Optional[int] = None,
+):      
     """
 
     Args:
@@ -288,16 +291,12 @@ def create_loader(
         hflip=hflip,
         vflip=vflip,
         color_jitter=color_jitter,
-        color_jitter_prob=color_jitter_prob,
-        grayscale_prob=grayscale_prob,
-        gaussian_blur_prob=gaussian_blur_prob,
         auto_augment=auto_augment,
         interpolation=interpolation,
         mean=mean,
         std=std,
         crop_pct=crop_pct,
         crop_mode=crop_mode,
-        crop_border_pixels=crop_border_pixels,
         re_prob=re_prob,
         re_mode=re_mode,
         re_count=re_count,
@@ -305,6 +304,12 @@ def create_loader(
         tf_preprocessing=tf_preprocessing,
         use_prefetcher=use_prefetcher,
         separate=num_aug_splits > 0,
+
+        ## depcrecated (inspect.signature(create_transform)) to check for params for future deprecations
+        # color_jitter_prob=color_jitter_prob, 
+        # grayscale_prob=grayscale_prob,
+        # gaussian_blur_prob=gaussian_blur_prob,
+        # crop_border_pixels=crop_border_pixels,
     )
 
     if isinstance(dataset, IterableImageDataset):
