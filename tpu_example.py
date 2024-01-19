@@ -197,7 +197,7 @@ parser.add_argument('--use_cce', default=False, action='store_true',
                     help='Use PyTorch XLA on TPUs')
 
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, max_norm: float = 0):
+def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_scheduler = None, max_norm: float = 0):
     
     model.train()
     optimizer.zero_grad()
@@ -212,8 +212,13 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
     lr = sum(lrl) / len(lrl)
 
     for input, target in tqdm(train_dataloader):
+        
         input, target = input.to(device), target.to(device)
+        print(f'Input shape: {input.shape}')
+        
         output  = model(input)
+        print(f'Output shape: {output.shape}')
+        
         if isinstance(output, (tuple, list)):
             output = output[0]
         loss = loss_fn(output, target)
@@ -240,7 +245,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
 
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
-def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
+def validate(model, epoch, val_dataloader, optimizer, device):
     
     model.eval()
     losses_m = utils.AverageMeter()
@@ -438,11 +443,9 @@ def main(rank, args):
         sl_utils.broadcast_xla_master_model_param(model, args)
 
     print('model parameters broadcasted')
-    
-    loss_fn = nn.CrossEntropyLoss()
 
     for epoch in range(10): ## iterate through epochs
-        train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
+        train_one_epoch(model, epoch, loader_train, optimizer, device)
         # val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
 
