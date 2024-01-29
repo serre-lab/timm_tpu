@@ -212,7 +212,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     lr = sum(lrl) / len(lrl)
 
     for input, target in tqdm(train_dataloader):
-        
+        print('Master node ented in for loop')
         input, target = input.to(device), target.to(device)
         print(f'Input shape: {input.shape}')
         
@@ -223,7 +223,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
-        pdb.set_trace()
+        # pdb.set_trace()
         
         loss.backward()
         xm.reduce_gradients(optimizer)
@@ -255,6 +255,8 @@ def validate(model, epoch, val_dataloader, optimizer, device):
     lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
     lr = sum(lrl) / len(lrl)
 
+    loss_fn = nn.CrossEntropyLoss().to(device)
+
     for input, target in tqdm(val_dataloader):
         input, target = input.to(device), target.to(device)
         output  = model(input)
@@ -267,18 +269,18 @@ def validate(model, epoch, val_dataloader, optimizer, device):
         top1_m.update(acc1)
         top5_m.update(acc)
     
-    _logger.info(
-                    f'Val: {epoch}'
-                    f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                    f'LR: {lr:.3e}  '
-                )
+    # _logger.info(
+    #                 f'Val: {epoch}'
+    #                 f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
+    #                 f'LR: {lr:.3e}  '
+    #             )
     
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
 
 ## main function
 
-def main(rank, args):
+def main(args):
 
     sl_utils.init_distributed_mode(args)
 
@@ -286,9 +288,9 @@ def main(rank, args):
         device = xm.xla_device()
     print('Device Used:', device)
 
-    seed = args.seed + sl_utils.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    # seed = args.seed + sl_utils.get_rank()
+    # torch.manual_seed(seed)
+    # np.random.seed(seed)
 
     args.prefetcher = not args.no_prefetcher
     dataset_train = create_dataset(
@@ -297,7 +299,7 @@ def main(rank, args):
             split=args.train_split,
             is_training=True,
             batch_size=args.batch_size,
-            seed=seed,
+            # seed=seed,
         )
     dataset_eval = create_dataset(
         args.data,
@@ -305,7 +307,7 @@ def main(rank, args):
         split=args.val_split,
         is_training=False,
         batch_size=args.batch_size,
-        seed = seed,
+        # seed = seed,
     )
 
     ## create model
@@ -417,7 +419,6 @@ def main(rank, args):
         worker_seeding='all',
         shuffle=False
         )
-    
     print('create val_loader done')
 
     optimizer = create_optimizer_v2(
@@ -425,34 +426,31 @@ def main(rank, args):
         **optimizer_kwargs(cfg=args),
         **args.opt_kwargs,
     )
-
     print('optimizer done')
 
     if sl_utils.XLA_CFG["is_xla"]:
         loader_train = pl.MpDeviceLoader(loader_train, device)
         loader_eval = pl.MpDeviceLoader(loader_eval, device)
-    
-
-    print('Loader deployed on tpu')
+        print('Loader deployed on tpu')
 
     model = model.to(device)
-
     print('model deployed on tpu')
 
     if sl_utils.XLA_CFG["is_xla"]:
         sl_utils.broadcast_xla_master_model_param(model, args)
+        print('model parameters broadcasted')
 
-    print('model parameters broadcasted')
-
+    print('Train epoch Started')
     for epoch in range(10): ## iterate through epochs
         train_one_epoch(model, epoch, loader_train, optimizer, device)
         # val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
-
+def xla_main(index, args):
+    main(args)
 if __name__ == '__main__':
     
     opts = parser.parse_args()
-    _logger = logging.getLogger('train')
+    # _logger = logging.getLogger('train')
 
     tpu_cores_per_node = 8
-    xmp.spawn(main, args=(opts,), nprocs=tpu_cores_per_node)
+    xmp.spawn(xla_main, args=(opts,), nprocs=tpu_cores_per_node)
