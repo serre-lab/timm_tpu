@@ -456,5 +456,5 @@ if __name__ == '__main__':
     opts = parser.parse_args()
     # _logger = logging.getLogger('train')
 
-    tpu_cores_per_node = 8 # Use 1 code for debugging
+    tpu_cores_per_node = 1 # Use 1 code for debugging
     xmp.spawn(xla_main, args=(opts,), nprocs=tpu_cores_per_node)
