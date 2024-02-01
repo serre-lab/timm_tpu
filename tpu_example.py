@@ -198,20 +198,18 @@ parser.add_argument('--use_cce', default=False, action='store_true',
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_scheduler = None, max_norm: float = 0):
     # import ipdb; ipdb.set_trace()
+    
     model.train()
-    optimizer.zero_grad()
-
-    # losses_m = utils.AverageMeter()
-    # top1_m = utils.AverageMeter()
-    # top5_m = utils.AverageMeter()
+    metric_logger = sl_utils.MetricLogger(delimeter = ' ')
+    header = 'TRAIN epoch: [{}]'.format(epoch)
     print("Metric Logger Issue")
 
     loss_fn = nn.CrossEntropyLoss()
 
-    lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
-    lr = sum(lrl) / len(lrl)
-    count = 0
-    for input, target in train_dataloader:
+    # lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
+    # # lr = sum(lrl) / len(lrl)
+
+    for i, input, target in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
         print(f'Epoch : {count+1}')
         input, target = input.to(device), target.to(device)
         print(f'Input shape: {input.shape}')
@@ -229,23 +227,25 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
         xm.reduce_gradients(optimizer)
         optimizer.step()
         
-        losses_m.update(loss.item(), input.size()[0])
-        top1_m.update(acc1)
-        top5_m.update(acc)
-        optimizer.step()
-        
-        if lr_scheduler:
-            lr_scheduler.step()
-        
-        count+=1
 
+        ## ================================= Fix me ============================================
+        ## add xm.add_step_closure ========
+        optimizer.zero_grad()
+        xm.add_step_closure(sl_utils._xla_logging, args = (metric_logger, loss))
+        ## =====================================================================================
+        
+        # if lr_scheduler:
+        #     lr_scheduler.step()
+    
     # _logger.info(
     #                 f'Train: {epoch}'
     #                 f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
     #                 f'LR: {lr:.3e}  '
     #             )
 
-    return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
+    # return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
+        
+    return 
 
 def validate(model, epoch, val_dataloader, optimizer, device):
     
