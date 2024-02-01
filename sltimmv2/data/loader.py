@@ -325,12 +325,12 @@ def create_loader(
             if num_aug_repeats:
                 sampler = RepeatAugSampler(dataset, num_repeats=num_aug_repeats)
             else:
-                sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank, shuffle = shuffle)
+                sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank)
         else:
             # This will add extra duplicate entries to result in equal num
             # of samples per-process, will slightly alter validation results
             # sampler = OrderedDistributedSampler(dataset)
-            sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank, shuffle = shuffle)
+            sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank)
     else:
         assert num_aug_repeats == 0, "RepeatAugment not currently supported in non-distributed or IterableDataset use"
 

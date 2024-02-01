@@ -195,10 +195,27 @@ parser.add_argument('--use_xla', default=False, action='store_true',
 parser.add_argument('--use_cce', default=False, action='store_true',
                     help='Use PyTorch XLA on TPUs')
 
+import sys
+import pdb
+
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_scheduler = None, max_norm: float = 0):
-    # import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
     
+    # ForkedPdb().set_trace()
     model.train()
     metric_logger = sl_utils.MetricLogger(delimiter = ' ')
     header = 'TRAIN epoch: [{}]'.format(epoch)
@@ -210,6 +227,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     # # lr = sum(lrl) / len(lrl)
 
     for i, (input, target) in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
+        print("Enters the loader")
         input, target = input.to(device), target.to(device)
         print(f'Input shape: {input.shape}')
         
