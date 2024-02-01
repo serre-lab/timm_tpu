@@ -201,9 +201,10 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     model.train()
     optimizer.zero_grad()
 
-    losses_m = utils.AverageMeter()
-    top1_m = utils.AverageMeter()
-    top5_m = utils.AverageMeter()
+    # losses_m = utils.AverageMeter()
+    # top1_m = utils.AverageMeter()
+    # top5_m = utils.AverageMeter()
+    print("Metric Logger Issue")
 
     loss_fn = nn.CrossEntropyLoss()
 
@@ -447,7 +448,9 @@ def main(args):
         # val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
 def xla_main(index, args):
+    sl_utils.XLA_CFG["is_xla"] = True
     main(args)
+
 if __name__ == '__main__':
     
     opts = parser.parse_args()

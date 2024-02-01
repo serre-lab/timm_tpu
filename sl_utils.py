@@ -27,7 +27,7 @@ try:
 except ImportError:
     xm = xmp = pl = xu = None
 
-XLA_CFG = {"is_xla": True, "logging_interval": 20}
+XLA_CFG = {"is_xla": False, "logging_interval": 20}
 
 def get_rank():
     return xm.get_ordinal()
