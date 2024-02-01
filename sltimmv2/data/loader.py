@@ -217,7 +217,7 @@ def create_loader(
         pin_memory: bool = False,
         fp16: bool = False,  # deprecated, use img_dtype
         img_dtype: torch.dtype = torch.float32,
-        device: torch.device = torch.device('cuda'),
+        device = None,
         use_prefetcher: bool = True,
         use_multi_epochs_loader: bool = False,
         persistent_workers: bool = True,
