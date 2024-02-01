@@ -209,8 +209,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     # lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
     # # lr = sum(lrl) / len(lrl)
 
-    for i, input, target in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
-        print(f'Epoch : {count+1}')
+    for i, (input, target) in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
         input, target = input.to(device), target.to(device)
         print(f'Input shape: {input.shape}')
         
@@ -456,5 +455,5 @@ if __name__ == '__main__':
     opts = parser.parse_args()
     # _logger = logging.getLogger('train')
 
-    tpu_cores_per_node = 1 # Use 1 code for debugging
+    tpu_cores_per_node = 8 # Use 1 code for debugging
     xmp.spawn(xla_main, args=(opts,), nprocs=tpu_cores_per_node)
