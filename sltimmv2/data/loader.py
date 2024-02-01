@@ -217,7 +217,7 @@ def create_loader(
         pin_memory: bool = False,
         fp16: bool = False,  # deprecated, use img_dtype
         img_dtype: torch.dtype = torch.float32,
-        device = None,
+        device: torch.device = torch.device('cuda'),
         use_prefetcher: bool = True,
         use_multi_epochs_loader: bool = False,
         persistent_workers: bool = True,
@@ -317,7 +317,7 @@ def create_loader(
         dataset.set_loader_cfg(num_workers=num_workers)
 
     num_workers = sl_utils.get_world_size()
-    # global_rank = sl_utils.get_rank()
+    global_rank = sl_utils.get_rank()
 
     sampler = None
     if distributed and not isinstance(dataset, torch.utils.data.IterableDataset):
@@ -325,12 +325,12 @@ def create_loader(
             if num_aug_repeats:
                 sampler = RepeatAugSampler(dataset, num_repeats=num_aug_repeats)
             else:
-                sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = device)
+                sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank)
         else:
             # This will add extra duplicate entries to result in equal num
             # of samples per-process, will slightly alter validation results
             # sampler = OrderedDistributedSampler(dataset)
-            sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = device)
+            sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas = num_workers, rank = global_rank)
     else:
         assert num_aug_repeats == 0, "RepeatAugment not currently supported in non-distributed or IterableDataset use"
 
@@ -349,8 +349,8 @@ def create_loader(
         collate_fn=collate_fn,
         pin_memory=pin_memory,
         drop_last=is_training,
-        worker_init_fn=partial(_worker_init, worker_seeding=worker_seeding),
-        persistent_workers=persistent_workers
+        # worker_init_fn=partial(_worker_init, worker_seeding=worker_seeding),
+        # persistent_workers=persistent_workers
     )
     try:
         loader = loader_class(dataset, **loader_args)
