@@ -92,7 +92,6 @@ def save_on_master(*args, **kwargs):
 
 def init_distributed_mode(args):
     if XLA_CFG["is_xla"]:
-        print("Init distributed mode")
         args.rank = xm.get_ordinal()
         args.distributed = True
         setup_for_distributed(args.rank == 0)
