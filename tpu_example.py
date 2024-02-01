@@ -206,7 +206,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     top1_m = utils.AverageMeter()
     top5_m = utils.AverageMeter()
 
-    loss_fn = nn.CrossEntropyLoss().to(device)
+    loss_fn = nn.CrossEntropyLoss()
 
     lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
     lr = sum(lrl) / len(lrl)
