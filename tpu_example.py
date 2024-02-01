@@ -198,7 +198,7 @@ parser.add_argument('--use_cce', default=False, action='store_true',
 
 ## train for one epoch
 def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_scheduler = None, max_norm: float = 0):
-    
+    import ipdb; ipdb.set_trace()
     model.train()
     optimizer.zero_grad()
 
@@ -454,5 +454,5 @@ if __name__ == '__main__':
     opts = parser.parse_args()
     # _logger = logging.getLogger('train')
 
-    tpu_cores_per_node = 8
+    tpu_cores_per_node = 1
     xmp.spawn(xla_main, args=(opts,), nprocs=tpu_cores_per_node)
