@@ -200,7 +200,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
     # import ipdb; ipdb.set_trace()
     
     model.train()
-    metric_logger = sl_utils.MetricLogger(delimeter = ' ')
+    metric_logger = sl_utils.MetricLogger(delimiter = ' ')
     header = 'TRAIN epoch: [{}]'.format(epoch)
     print("Metric Logger Issue")
 
