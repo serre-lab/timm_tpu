@@ -229,7 +229,7 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
         xm.reduce_gradients(optimizer)
         optimizer.step()
         
-        losses_m.update(loss.item(), input.size[0])
+        losses_m.update(loss.item(), input.size()[0])
         top1_m.update(acc1)
         top5_m.update(acc)
         optimizer.step()
