@@ -210,9 +210,9 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
 
     lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
     lr = sum(lrl) / len(lrl)
-
-    for input, target in tqdm(train_dataloader):
-        print('Master node ented in for loop')
+    count = 0
+    for input, target in train_dataloader:
+        print(f'Epoch : {count+1}')
         input, target = input.to(device), target.to(device)
         print(f'Input shape: {input.shape}')
         
@@ -236,6 +236,8 @@ def train_one_epoch(model, epoch, train_dataloader, optimizer, device, lr_schedu
         
         if lr_scheduler:
             lr_scheduler.step()
+        
+        count+=1
 
     # _logger.info(
     #                 f'Train: {epoch}'
