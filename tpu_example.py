@@ -29,6 +29,9 @@ from timm.utils import ApexScaler, NativeScaler
 import sl_utils
 from sl_utils import NativeScalerWithGradNormCount as NativeScaler
 from sltimmv2.data import create_loader
+
+from torchvision import transforms
+
 try:
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.xla_multiprocessing as xmp
@@ -320,6 +323,9 @@ def main(args):
             batch_size=args.batch_size,
             # seed=seed,
         )
+    
+    dataset_train.transform = transforms.Compose([transforms.ToTensor()])
+    
     dataset_eval = create_dataset(
         args.data,
         root=args.data_dir,
