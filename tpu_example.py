@@ -381,64 +381,76 @@ def main(args):
         train_interpolation = data_config['interpolation']
 
 
-    loader_train = create_loader(
-        dataset_train,
-        input_size=data_config['input_size'],
+    # loader_train = create_loader(
+    #     dataset_train,
+    #     input_size=data_config['input_size'],
+    #     batch_size=args.batch_size,
+    #     is_training=True,
+    #     use_prefetcher=args.prefetcher,
+    #     no_aug=args.no_aug,
+    #     re_prob=args.reprob,
+    #     re_mode=args.remode,
+    #     re_count=args.recount,
+    #     re_split=args.resplit,
+    #     scale=args.scale,
+    #     ratio=args.ratio,
+    #     hflip=args.hflip,
+    #     vflip=args.vflip,
+    #     color_jitter=args.color_jitter,
+    #     auto_augment=args.aa,
+    #     num_aug_repeats=args.aug_repeats,
+    #     num_aug_splits=num_aug_splits,
+    #     interpolation=train_interpolation,
+    #     mean=data_config['mean'],
+    #     std=data_config['std'],
+    #     # num_workers=args.workers, ## the parameter sets with get_world_size inside the function
+    #     distributed=args.distributed,
+    #     collate_fn=collate_fn,
+    #     pin_memory=args.pin_mem,
+    #     device=device,
+    #     use_multi_epochs_loader=args.use_multi_epochs_loader,
+    #     worker_seeding='all',
+    #     shuffle = True
+    # )
+
+    # print('create train loader done')
+
+    # # eval_workers = num_workers
+    # # ============================================ FIX LATER ===============================================
+    # # if args.distributed and ('tfds' in args.data or 'wds' in args.data):
+    # #     # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
+    # #     eval_workers = min(2, args.workers)
+
+    # loader_eval = create_loader(
+    #     dataset_eval,
+    #     input_size=data_config['input_size'],
+    #     batch_size=args.validation_batch_size or args.batch_size,
+    #     is_training=False,
+    #     use_prefetcher=args.prefetcher,
+    #     interpolation=data_config['interpolation'],
+    #     mean=data_config['mean'],
+    #     std=data_config['std'],
+    #     # num_workers=eval_workers, # the parameter sets with get_world_size inside the function
+    #     distributed=args.distributed,
+    #     crop_pct=data_config['crop_pct'],
+    #     pin_memory=args.pin_mem,
+    #     device=device,
+    #     worker_seeding='all',
+    #     shuffle=False
+    #     )
+    # print('create val_loader done')
+
+    sampler_train = torch.utils.data.distributed.DistributedSampler(dataset_train, num_replicas = sl_utils.get_world_size(), rank = sl_utils.get_rank())
+    loader_train = torch.utils.data.DataLoader(
+        dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
-        is_training=True,
-        use_prefetcher=args.prefetcher,
-        no_aug=args.no_aug,
-        re_prob=args.reprob,
-        re_mode=args.remode,
-        re_count=args.recount,
-        re_split=args.resplit,
-        scale=args.scale,
-        ratio=args.ratio,
-        hflip=args.hflip,
-        vflip=args.vflip,
-        color_jitter=args.color_jitter,
-        auto_augment=args.aa,
-        num_aug_repeats=args.aug_repeats,
-        num_aug_splits=num_aug_splits,
-        interpolation=train_interpolation,
-        mean=data_config['mean'],
-        std=data_config['std'],
-        # num_workers=args.workers, ## the parameter sets with get_world_size inside the function
-        distributed=args.distributed,
-        collate_fn=collate_fn,
+        num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        device=device,
-        use_multi_epochs_loader=args.use_multi_epochs_loader,
-        worker_seeding='all',
-        shuffle = True
+        drop_last=True,
+        worker_init_fn=utils.seed_worker,
+        persistent_workers=True,
+        # prefetch_factor=12
     )
-
-    print('create train loader done')
-
-    # eval_workers = num_workers
-    # ============================================ FIX LATER ===============================================
-    # if args.distributed and ('tfds' in args.data or 'wds' in args.data):
-    #     # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
-    #     eval_workers = min(2, args.workers)
-
-    loader_eval = create_loader(
-        dataset_eval,
-        input_size=data_config['input_size'],
-        batch_size=args.validation_batch_size or args.batch_size,
-        is_training=False,
-        use_prefetcher=args.prefetcher,
-        interpolation=data_config['interpolation'],
-        mean=data_config['mean'],
-        std=data_config['std'],
-        # num_workers=eval_workers, # the parameter sets with get_world_size inside the function
-        distributed=args.distributed,
-        crop_pct=data_config['crop_pct'],
-        pin_memory=args.pin_mem,
-        device=device,
-        worker_seeding='all',
-        shuffle=False
-        )
-    print('create val_loader done')
 
     optimizer = create_optimizer_v2(
         model,
@@ -449,7 +461,7 @@ def main(args):
 
     if sl_utils.XLA_CFG["is_xla"]:
         loader_train = pl.MpDeviceLoader(loader_train, device)
-        loader_eval = pl.MpDeviceLoader(loader_eval, device)
+        # loader_eval = pl.MpDeviceLoader(loader_eval, device)
         print('Loader deployed on tpu')
 
     model = model.to(device)
