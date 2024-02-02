@@ -344,7 +344,7 @@ def create_loader(
     loader_args = dict(
         batch_size=batch_size,
         shuffle=not isinstance(dataset, torch.utils.data.IterableDataset) and sampler is None and is_training,
-        num_workers=num_workers,
+        num_workers=1,
         sampler=sampler,
         collate_fn=collate_fn,
         pin_memory=pin_memory,
