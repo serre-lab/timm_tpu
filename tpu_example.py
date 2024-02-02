@@ -447,7 +447,7 @@ def main(args):
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
-        worker_init_fn=utils.seed_worker,
+        worker_init_fn=sl_utils.seed_worker,
         persistent_workers=True,
         # prefetch_factor=12
     )

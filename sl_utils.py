@@ -426,3 +426,10 @@ class MetricLogger(object):
 
 def _xla_logging(metric_logger, loss):
     metric_logger.update(loss=loss.item())
+
+import random
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+    
