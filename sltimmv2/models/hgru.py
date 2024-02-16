@@ -176,7 +176,7 @@ class hConvGruResNet(nn.Module):
             self.timesteps = 8,
             self.dtype = torch.float32 
 
-            self.activ = nn.ReLU()
+            self.activ = nn.ReLU
 
             self.conv0_1 = nn.Conv2d(3, self.hidden_size//2, kernel_size = 3, stride = 2, padding = 1, dtype=self.dtype)
             self.conv0_2 = nn.Conv2d(self.hidden_size//2, self.hidden_size, kernel_size = 3, stride = 2, padding = 1, dtype=self.dtype)
