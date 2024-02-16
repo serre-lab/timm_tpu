@@ -171,14 +171,14 @@ class hConvGruResNet(nn.Module):
     def __init__(self):
             super().__init__()
         
-            self.num_classes = 2,
-            self.hidden_size = 64, 
-            self.kernel_size = 3,
-            self.timesteps = 8,
+            self.num_classes = 2
+            self.hidden_size = 64 
+            self.kernel_size = 3
+            self.timesteps = 8
             self.dtype = torch.float32 
 
-            self.conv0_1 = nn.Conv2d(3, 32, kernel_size = 3, stride = 2, padding = 1)
-            self.conv0_2 = nn.Conv2d(32, self.hidden_size, kernel_size = 3, stride = 2, padding = 1)
+            self.conv0_1 = nn.Conv2d(3, 32, kernel_size = 3, stride = 2, padding = 1, dtype = self.dtype)
+            self.conv0_2 = nn.Conv2d(32, self.hidden_size, kernel_size = 3, stride = 2, padding = 1, dtype = self.dtype)
             self.conv0_3 = nn.Conv2d(self.hidden_size, self.hidden_size, kernel_size = 3, stride = 2, padding = 1, dtype=self.dtype)
             self.bninp_1 = nn.BatchNorm2d(32, momentum=0.9, eps=1e-5, dtype=self.dtype)
             self.bninp_2 = nn.BatchNorm2d(self.hidden_size, momentum=0.9, eps=1e-5, dtype=self.dtype)
