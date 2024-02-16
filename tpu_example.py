@@ -324,7 +324,7 @@ def main(args):
             # seed=seed,
         )
     
-    dataset_train.transform = transforms.Compose([transforms.ToTensor()])
+    dataset_train.transform = transforms.Compose([transforms.ToTensor(), transforms.CenterCrop(224)])
     
     dataset_eval = create_dataset(
         args.data,
@@ -450,7 +450,7 @@ def main(args):
     loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
-        num_workers=args.num_workers,
+        num_workers=1,
         pin_memory=args.pin_mem,
         drop_last=True,
         worker_init_fn=sl_utils.seed_worker,
