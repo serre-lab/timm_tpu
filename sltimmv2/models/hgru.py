@@ -138,7 +138,7 @@ class hConvGru(nn.Module):
             self.dtype = torch.float32
             
 
-            self.conv0 = nn.Conv2d(1, self.hidden_size, kernel_size= 7, padding=3) ## previous gpu implementation had serre gabor initialization
+            self.conv0 = nn.Conv2d(3, self.hidden_size, kernel_size= 7, padding=3) ## previous gpu implementation had serre gabor initialization
             
             self.bnip = nn.BatchNorm2d(self.hidden_size)
             self.rnncell1 = hConvGruCell(self.hidden_size, self.hidden_size, kernel_size=self.kernel_size)
@@ -151,7 +151,7 @@ class hConvGru(nn.Module):
         
             x = self.conv0(x)
             x = self.bnip(x) ## jax had running average
-            
+            print(f'First conv layer passed output shape {x.shape}')
             internal_state = jnp.zeros_like(x)
             for i in range(self.timesteps):
                 internal_state = self.unit1(x, internal_state, timestep = i)
