@@ -8,6 +8,11 @@ import torch.nn.functional as F
 
 import numpy as jnp
 
+
+import timm
+from timm.models._registry import register_model
+
+
 ModuleDef = Any
 jnp.random.seed(42)
 
@@ -160,8 +165,8 @@ class hConvGru(nn.Module):
 
 class hConvGruResNet(nn.Module):
 
-	def __init__(self):
-		
+    def __init__(self):
+        
             self.num_classes = 2,
             self.hidden_size = 64, 
             self.kernel_size = 3,
@@ -200,55 +205,63 @@ class hConvGruResNet(nn.Module):
             #self.conv6 = nn.Conv(2048, [1, 1], dtype=self.dtype)
             self.dense1 = nn.Dense(self.num_classes, dtype=self.dtype)
 
-def __call__(self, x, train: bool = True):
 
-        x = self.conv0_1(x)
-        x = self.activ(self.bninp_1(x))
+    def forward(self, x):
+            x = self.conv0_1(x)
+            x = self.activ(self.bninp_1(x))
 
-        x = self.conv0_2(x)
-        x = self.activ(self.bninp_2(x))
+            x = self.conv0_2(x)
+            x = self.activ(self.bninp_2(x))
 
-        n = x.shape[2]
-        maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2, padding = (n+1)//2)
-        
-        x = maxpool(x)
-        x = self.conv0_3(x)
-        x = self.activ(self.bninp_3(x))
+            n = x.shape[2]
+            maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2, padding = (n+1)//2)
 
-        state = jnp.zeros_like(x)
-        for i in range(self.timesteps):
-            state = self.rnncell1(x, state, timestep = i)
-        
-        x = self.conv1(state)
-        x = self.activ(self.bn1(x))
-        
-        state = jnp.zeros_like(x)
-        for i in range(self.timesteps):
-            state = self.rnncell2(x, state, timestep = i)
+            x = maxpool(x)
+            x = self.conv0_3(x)
+            x = self.activ(self.bninp_3(x))
 
-        x = self.conv2(state)
-        x = self.activ(self.bn2(x))
-        
-        state = jnp.zeros_like(x)
-        for i in range(self.timesteps):
-            state = self.rnncell3(x, state, timestep = i)
-            
-        x = self.conv3(state)
-        x = self.activ(self.bn3(x))
-            
-        state = jnp.zeros_like(x)
-        for i in range(self.timesteps):
-            state = self.rnncell4(x, state, timestep = i)
-        
-        x = self.conv4(state)
-        x = self.activ(self.bnop_1(x))
-        
-        x = torch.mean(x, axis = (1,2))
-        
-        x = self.bnop_3(x)
-        x = self.dense1(x)
-        
-        return x
+            state = jnp.zeros_like(x)
+            for i in range(self.timesteps):
+                state = self.rnncell1(x, state, timestep = i)
+
+            x = self.conv1(state)
+            x = self.activ(self.bn1(x))
+
+            state = jnp.zeros_like(x)
+            for i in range(self.timesteps):
+                state = self.rnncell2(x, state, timestep = i)
+
+            x = self.conv2(state)
+            x = self.activ(self.bn2(x))
+
+            state = jnp.zeros_like(x)
+            for i in range(self.timesteps):
+                state = self.rnncell3(x, state, timestep = i)
+                
+            x = self.conv3(state)
+            x = self.activ(self.bn3(x))
+                
+            state = jnp.zeros_like(x)
+            for i in range(self.timesteps):
+                state = self.rnncell4(x, state, timestep = i)
+
+            x = self.conv4(state)
+            x = self.activ(self.bnop_1(x))
+
+            x = torch.mean(x, axis = (1,2))
+
+            x = self.bnop_3(x)
+            x = self.dense1(x)
+
+            return x
+    
+
+__all__ = []
+
+@register_model
+def hgru(pretrained = False, **kwargs):
+    model = hConvGru()
+    return model
 			
 ## changes 
 	# g2_t = F.sigmoid(self.bn[i*4+2](self.u2_gate(next_state1))) removed coz of batchnorm

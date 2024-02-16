@@ -277,23 +277,20 @@ def main():
     ## load custom model
 
     
-    # model = create_model(
-    #     args.model_name,
-    #     pretrained=args.pretrained,
-    #     in_chans=in_chans,
-    #     num_classes=args.num_classes,
-    #     drop_rate=args.drop,
-    #     drop_path_rate=args.drop_path,
-    #     drop_block_rate=args.drop_block,
-    #     global_pool=args.gp,
-    #     bn_momentum=args.bn_momentum,
-    #     bn_eps=args.bn_eps,
-    #     # scriptable=args.torchscript,
-    #     checkpoint_path=args.initial_checkpoint,
-    # )
-
-    model = create_hgru()
-
+    model = create_model(
+        args.model_name,
+        pretrained=args.pretrained,
+        in_chans=in_chans,
+        num_classes=args.num_classes,
+        drop_rate=args.drop,
+        drop_path_rate=args.drop_path,
+        drop_block_rate=args.drop_block,
+        global_pool=args.gp,
+        bn_momentum=args.bn_momentum,
+        bn_eps=args.bn_eps,
+        # scriptable=args.torchscript,
+        checkpoint_path=args.initial_checkpoint,
+    )
 
     ## create data loader
     # setup mixup / cutmix
