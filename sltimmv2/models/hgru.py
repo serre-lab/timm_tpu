@@ -177,8 +177,6 @@ class hConvGruResNet(nn.Module):
             self.timesteps = 8,
             self.dtype = torch.float32 
 
-            self.activ = nn.ReLU
-
             self.conv0_1 = nn.Conv2d(3, 32, kernel_size = 3, stride = 2, padding = 1)
             self.conv0_2 = nn.Conv2d(32, self.hidden_size, kernel_size = 3, stride = 2, padding = 1)
             self.conv0_3 = nn.Conv2d(self.hidden_size, self.hidden_size, kernel_size = 3, stride = 2, padding = 1, dtype=self.dtype)
@@ -207,7 +205,9 @@ class hConvGruResNet(nn.Module):
             #self.bnop_2 = nn.BatchNorm(momentum=0.9, epsilon=1e-5, dtype=self.dtype)
             self.bnop_3 = nn.BatchNorm2d(self.hidden_size *16*2, momentum=0.9, eps=1e-5, dtype=self.dtype)
             #self.conv6 = nn.Conv(2048, [1, 1], dtype=self.dtype)
-            self.dense1 = nn.Dense(self.num_classes, dtype=self.dtype)
+            self.dense1 = nn.Linear(self.hidden_size *16*2, self.num_classes)
+
+            self.activ = nn.ReLU()
 
 
     def forward(self, x):
