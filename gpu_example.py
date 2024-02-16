@@ -379,11 +379,13 @@ def main():
         device=device,
         )
 
-    optimizer = create_optimizer_v2(
-        model,
-        **optimizer_kwargs(cfg=args),
-        **args.opt_kwargs,
-    )
+    #optimizer = create_optimizer_v2(
+    #    model,
+    #    **optimizer_kwargs(cfg=args),
+    #    **args.opt_kwargs,
+    #)
+    optimizer = torch.optim.SGD(model.parameters(), lr = 0.01, momentum = 0.9)
+
     loss_fn = nn.CrossEntropyLoss().to(device)
     print('Iam here')
 
