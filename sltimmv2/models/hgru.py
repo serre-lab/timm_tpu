@@ -213,7 +213,7 @@ class hConvGruResNet(nn.Module):
     def forward(self, x):
             x = self.conv0_1(x)
             x = self.activ(self.bninp_1(x))
-
+            print(f'Shape after conv1 {x.shape}')
             x = self.conv0_2(x)
             x = self.activ(self.bninp_2(x))
 
