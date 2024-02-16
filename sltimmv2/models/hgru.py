@@ -158,6 +158,7 @@ class hConvGru(nn.Module):
             
             x = self.bnop(internal_state)
             x = self.conv6(x)
+            print(f'Shape before mean {x.shape}')
             x = torch.mean(x, axis = (1,2))
             print(f'Completed Convgru penultimate {x.shape}')
             x = self.dense1(x).type(self.dtype)
