@@ -40,6 +40,7 @@ class hConvGruCell(nn.Module):
         self.hidden_size = hidden_size
         self.timesteps = timesteps
         self.batchnorm = batchnorm
+        self.layernorm = layernorm
 
         ## UPDATE RESET GATE
         self.u1_gate = nn.Conv2d(hidden_size, hidden_size, 1)
