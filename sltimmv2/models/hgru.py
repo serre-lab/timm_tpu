@@ -65,7 +65,7 @@ class hConvGruCell(nn.Module):
 
         if self.batchnorm:
             #self.bn = nn.ModuleList([nn.GroupNorm(25, 25, eps=1e-03) for i in range(32)])
-            self.bn = nn.ModuleList([nn.BatchNorm2d(25, eps=1e-03) for i in range(32)])
+            self.bn = nn.ModuleList([nn.BatchNorm2d(self.hidden_size, eps=1e-03) for i in range(32)])
         else:
             self.n = nn.Parameter(torch.randn(self.timesteps,1,1))
         for bn in self.bn:
