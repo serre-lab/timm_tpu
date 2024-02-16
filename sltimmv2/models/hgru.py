@@ -154,7 +154,7 @@ class hConvGru(nn.Module):
             print(f'First conv layer passed output shape {x.shape}')
             internal_state = torch.zeros_like(x)
             for i in range(self.timesteps):
-                internal_state = self.unit1(x, internal_state, timestep = i)
+                internal_state = self.rnncell1(x, internal_state, timestep = i)
             
             x = self.bnop(internal_state)
             x = self.conv6(x)
