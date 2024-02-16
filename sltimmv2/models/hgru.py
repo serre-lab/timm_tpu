@@ -169,6 +169,7 @@ class hConvGru(nn.Module):
 class hConvGruResNet(nn.Module):
 
     def __init__(self):
+            super().__init__()
         
             self.num_classes = 2,
             self.hidden_size = 64, 
