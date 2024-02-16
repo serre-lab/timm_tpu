@@ -251,7 +251,7 @@ class hConvGruResNet(nn.Module):
             x = self.conv4(state)
             x = self.activ(self.bnop_1(x))
 
-            x = torch.mean(x, axis = (1,2))
+            x = torch.mean(x, axis = (2,3))
 
             x = self.bnop_3(x)
             x = self.dense1(x)
@@ -264,6 +264,11 @@ __all__ = []
 @register_model
 def hgru(pretrained = False, **kwargs):
     model = hConvGru()
+    return model
+
+@register_model
+def hconvgru_resnet(pretrained = False, **kwargs):
+    model = hConvGruResNet()
     return model
 			
 ## changes 
