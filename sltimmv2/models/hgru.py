@@ -152,7 +152,7 @@ class hConvGru(nn.Module):
             x = self.conv0(x)
             x = self.bnip(x) ## jax had running average
             print(f'First conv layer passed output shape {x.shape}')
-            internal_state = jnp.zeros_like(x)
+            internal_state = torch.zeros_like(x)
             for i in range(self.timesteps):
                 internal_state = self.unit1(x, internal_state, timestep = i)
             
@@ -221,28 +221,28 @@ class hConvGruResNet(nn.Module):
             x = self.conv0_3(x)
             x = self.activ(self.bninp_3(x))
 
-            state = jnp.zeros_like(x)
+            state = torch.zeros_like(x)
             for i in range(self.timesteps):
                 state = self.rnncell1(x, state, timestep = i)
 
             x = self.conv1(state)
             x = self.activ(self.bn1(x))
 
-            state = jnp.zeros_like(x)
+            state = torch.zeros_like(x)
             for i in range(self.timesteps):
                 state = self.rnncell2(x, state, timestep = i)
 
             x = self.conv2(state)
             x = self.activ(self.bn2(x))
 
-            state = jnp.zeros_like(x)
+            state = torch.zeros_like(x)
             for i in range(self.timesteps):
                 state = self.rnncell3(x, state, timestep = i)
                 
             x = self.conv3(state)
             x = self.activ(self.bn3(x))
                 
-            state = jnp.zeros_like(x)
+            state = torch.zeros_like(x)
             for i in range(self.timesteps):
                 state = self.rnncell4(x, state, timestep = i)
 
