@@ -203,7 +203,7 @@ class hConvGruResNet(nn.Module):
 
             self.bnop_1 = nn.BatchNorm2d(self.hidden_size*16*2, momentum=0.9, eps=1e-5, dtype=self.dtype)
             #self.bnop_2 = nn.BatchNorm(momentum=0.9, epsilon=1e-5, dtype=self.dtype)
-            self.bnop_3 = nn.BatchNorm2d(self.hidden_size *16*2, momentum=0.9, eps=1e-5, dtype=self.dtype)
+            self.bnop_3 = nn.BatchNorm1d(self.hidden_size *16*2, momentum=0.9, eps=1e-5, dtype=self.dtype)
             #self.conv6 = nn.Conv(2048, [1, 1], dtype=self.dtype)
             self.dense1 = nn.Linear(self.hidden_size *16*2, self.num_classes)
 
@@ -256,7 +256,7 @@ class hConvGruResNet(nn.Module):
             print(f'before mean shape : {x.shape}')
             x = torch.mean(x, axis = (2,3))
             print(f'Penultimate shape : {x.shape}')
-            x = self.bnop_3(x)
+            # x = self.bnop_3(x)
             x = self.dense1(x)
 
             return x
