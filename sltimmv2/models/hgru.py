@@ -256,7 +256,7 @@ class hConvGruResNet(nn.Module):
             print(f'before mean shape : {x.shape}')
             x = torch.mean(x, axis = (2,3))
             print(f'Penultimate shape : {x.shape}')
-            # x = self.bnop_3(x)
+            x = self.bnop_3(x)
             x = self.dense1(x)
 
             return x
