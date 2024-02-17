@@ -218,9 +218,9 @@ class hConvGruResNet(nn.Module):
             x = self.activ(self.bninp_2(x))
 
             n = (x.shape[2])//2
-            x = F.pad(x, (n,n,n,n,n,n), "constant", 0)
+            x = F.pad(x, (n,n,n,n), "constant", 0)
             print(f'shape after padding {x.shape}')
-            maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2, padding = (n+1)//2)
+            maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2)
 
             x = maxpool(x)
             x = self.conv0_3(x)
