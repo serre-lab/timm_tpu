@@ -277,14 +277,17 @@ def main():
 
     device = utils.init_distributed_device(args)
 
-    print(f"Is distributed training : {args.distributed}")
+    
 
-    if args.distributed:
-        _logger.info(
-            'Training in distributed mode with multiple processes, 1 device per process.'
-            f'Process {args.rank}, total {args.world_size}, device {args.device}.')
-    else:
-        _logger.info(f'Training with a single process on 1 device ({args.device}).')
+    if utils.is_primary(args):
+        print(f"Is distributed training : {args.distributed}")
+        if args.distributed:
+            _logger.info(
+                'Training in distributed mode with multiple processes, 1 device per process.'
+                f'Process {args.rank}, total {args.world_size}, device {args.device}.')
+        else:
+            _logger.info(f'Training with a single process on 1 device ({args.device}).')
+    
     assert args.rank >= 0
 
 
@@ -323,6 +326,7 @@ def main():
         # scriptable=args.torchscript,
         checkpoint_path=args.initial_checkpoint,
     )
+    model = model.to(device)
 
     if utils.is_primary(args):
         _logger.info(
@@ -331,7 +335,7 @@ def main():
     if args.distributed:
         if utils.is_primary(args):
             _logger.info("Using native Torch DistributedDataParallel.")
-        model = NativeDDP(model, device_ids=[device], broadcast_buffers=not args.no_ddp_bb)
+        model = NativeDDP(model, device_ids=[device], find_unused_parameters = False)
     
     ## create data loader
     # setup mixup / cutmix
