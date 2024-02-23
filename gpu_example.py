@@ -336,7 +336,7 @@ def main():
     if args.distributed:
         if utils.is_primary(args):
             _logger.info("Using native Torch DistributedDataParallel.")
-        model = NativeDDP(model, device_ids=[device], find_unused_parameters = False)
+        model = NativeDDP(model, device_ids=[device], find_unused_parameters = True)
     
     ## create data loader
     # setup mixup / cutmix
@@ -431,7 +431,13 @@ def main():
     
     optimizer = torch.optim.SGD(model.parameters(), lr = 0.01, momentum = 0.9)
 
-    loss_fn = nn.CrossEntropyLoss().to(device)
+    ## Can be made adaptable to BCE and other losses check pytorch_image_models repo
+    if args.smoothing:
+        train_loss_fn = LabelSmoothingCrossEntropy(smoothing = args.smoothing).to(device)
+    else:
+        validate_loss_fn = nn.CrossEntropyLoss().to(device)
+    validate_loss_fn = nn.CrossEntropyLoss().to(device)
+
     eval_metrics = "cross_entropy"
 
     model = model.to(device)
@@ -460,8 +466,8 @@ def main():
         elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
             loader_train.sampler.set_epoch(epoch)
 
-        train_metrics = train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
-        val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
+        train_metrics = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
+        val_metrics   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
 
 
 if __name__ == '__main__':
