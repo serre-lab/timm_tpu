@@ -43,6 +43,7 @@ parser.add_argument('--val_split', default = 'val', help = 'Validation folder na
 parser.add_argument('--batch_size', type = int, default = 128)
 parser.add_argument('--dataset_download', default = False)
 parser.add_argument('--validation_batch_size', type = int, default = 128)
+parser.add_argument('--checkpoint-hist', default = 10, type = int)
 
 ## model parameters
 parser.add_argument('--model_name', help = 'name of the model', default = 'resnet50')
@@ -189,8 +190,6 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
     top1_m = utils.AverageMeter()
     top5_m = utils.AverageMeter()
 
-    lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
-    lr = sum(lrl) / len(lrl)
 
     for input, target in tqdm(train_dataloader):
         input, target = input.to(device), target.to(device)
@@ -200,19 +199,32 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         loss.backward()
-        losses_m.update(loss.item(), input.size(0))
-        top1_m.update(acc1)
-        top5_m.update(acc)
+        if args.distributed:
+            reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
+            losses_m.update(reduced_loss.item(), input.size(0))
+            acc1 = utils.reduce_tensor(acc1, args.world_size)
+            top1_m.update(acc1)
+            acc5 = utils.reduce_tensor(acc5, args.world_size)
+            top5_m.update(acc)
+
+        else:
+            losses_m.update(loss.item(), input.size(0))
+            top1_m.update(acc1)
+            top5_m.update(acc)
         optimizer.step()
         if lr_scheduler:
             lr_scheduler.step()
+        
+        lrl = [param_group['lr'] for param_group in optimizer.param_groups]
+        lr = sum(lrl) / len(lrl)
 
-    _logger.info(
-                    f'Train: {epoch}'
-                    f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                    f'LR: {lr:.3e}  '
-                )
-
+        if utils.is_primary():
+            _logger.info(
+                            f'Train: {epoch} '
+                            f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
+                            f'Accuracy: {top1_m.avg:#.3g} top 5 {top5_m.avg:#.3g}'
+                            f'LR: {lr:.3e}  '
+                        )
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
 
 def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
@@ -233,14 +245,25 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         loss.backward()
-        losses_m.update(loss.item(), input.size(0))
-        top1_m.update(acc1)
-        top5_m.update(acc)
+        if args.distributed:
+            reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
+            losses_m.update(reduced_loss.item(), input.size(0))
+            acc1 = utils.reduce_tensor(acc1, args.world_size)
+            top1_m.update(acc1)
+            acc5 = utils.reduce_tensor(acc5, args.world_size)
+            top5_m.update(acc)
+
+        else:
+            losses_m.update(loss.item(), input.size(0))
+            top1_m.update(acc1)
+            top5_m.update(acc)
     
-    _logger.info(
-                    f'Val: {epoch}'
-                    f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                    f'LR: {lr:.3e}  '
+    if utils.is_primary():
+        _logger.info(
+                        f'Train: {epoch} '
+                        f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
+                        f'Accuracy: {top1_m.avg:#.3g} top 5 {top5_m.avg:#.3g}'
+                        f'LR: {lr:.3e}  '
                 )
     
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
@@ -253,6 +276,15 @@ def main():
     num_epochs = 10
 
     device = utils.init_distributed_device(args)
+
+    if args.distributed:
+        _logger.info(
+            'Training in distributed mode with multiple processes, 1 device per process.'
+            f'Process {args.rank}, total {args.world_size}, device {args.device}.')
+    else:
+        _logger.info(f'Training with a single process on 1 device ({args.device}).')
+    assert args.rank >= 0
+
 
     dataset_train = create_dataset(
             args.dataset,
@@ -275,8 +307,6 @@ def main():
     in_chans = 3
 
     ## load custom model
-
-    
     model = create_model(
         args.model_name,
         pretrained=args.pretrained,
@@ -292,6 +322,15 @@ def main():
         checkpoint_path=args.initial_checkpoint,
     )
 
+    if utils.is_primary(args):
+        _logger.info(
+            f'Model {safe_model_name(args.model)} created, param count:{sum([m.numel() for m in model.parameters()])}')
+
+    if args.distributed:
+        if utils.is_primary(args):
+            _logger.info("Using native Torch DistributedDataParallel.")
+        model = NativeDDP(model, device_ids=[device], broadcast_buffers=not args.no_ddp_bb)
+    
     ## create data loader
     # setup mixup / cutmix
     num_aug_splits = 0
@@ -359,10 +398,13 @@ def main():
     )
 
 
+    ##irrelevant
     eval_workers = args.workers
-    if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
-        # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
-        eval_workers = min(2, args.workers)
+    if args.val_split:
+        if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
+            # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
+            eval_workers = min(2, args.workers)
+
 
     loader_eval = create_loader(
         dataset_eval,
@@ -379,20 +421,38 @@ def main():
         pin_memory=args.pin_mem,
         device=device,
         )
+    
+    optimizer = torch.optim.SGD(model.parameters(), lr = 0.01, momentum = 0.9)
+
+    loss_fn = nn.CrossEntropyLoss().to(device)
+    eval_metrics = "cross_entropy"
+
+    model = model.to(device)
+
+    saver = utils.CheckpointSaver(
+        model = model,
+        optimizer = optimizer,
+        args = args,
+        checkpoint_dir = args.output,
+        recovery_dir = args.output,
+        decreasing = eval_metrics,
+        max_history = args.checkpoint_hist
+    )
 
     #optimizer = create_optimizer_v2(
     #    model,
     #    **optimizer_kwargs(cfg=args),
     #    **args.opt_kwargs,
     #)
-    optimizer = torch.optim.SGD(model.parameters(), lr = 0.01, momentum = 0.9)
 
-    loss_fn = nn.CrossEntropyLoss().to(device)
-    print('Iam here')
+    start_epoch = 0
+    for epoch in range(start_epoch, num_epochs):
+        
+        if hasattr(dataset_train, 'set_epoch'):
+                dataset_train.set_epoch(epoch)
+        elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
+            loader_train.sampler.set_epoch(epoch)
 
-    model = model.to(device)
-
-    for epoch in range(num_epochs):
         train_metrics = train_one_epoch(model, epoch, loader_train, loss_fn, optimizer, device)
         val_metrics   = validate(model, epoch, loader_eval, loss_fn, optimizer, device)
 
