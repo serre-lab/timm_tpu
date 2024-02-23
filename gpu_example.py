@@ -150,7 +150,7 @@ parser.add_argument('--drop-block', type=float, default=None, metavar='PCT',
 parser.add_argument("--rank", default=0, type=int)
 parser.add_argument('--no-prefetcher', action='store_true', default=False,
                    help='disable fast prefetcher')
-parser.add_argument('-j', '--workers', type=int, default=2, metavar='N',
+parser.add_argument('-j', '--workers', type=int, default=1, metavar='N',
                    help='how many training processes to use (default: 4)')
 parser.add_argument('--amp', action='store_true', default=False,
                    help='use NVIDIA Apex AMP or Native AMP for mixed precision training')
@@ -218,7 +218,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         lrl = [param_group['lr'] for param_group in optimizer.param_groups]
         lr = sum(lrl) / len(lrl)
 
-        if utils.is_primary():
+        if utils.is_primary(args):
             _logger.info(
                             f'Train: {epoch} '
                             f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
@@ -258,7 +258,7 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
             top1_m.update(acc1)
             top5_m.update(acc)
     
-    if utils.is_primary():
+    if utils.is_primary(args):
         _logger.info(
                         f'Train: {epoch} '
                         f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
@@ -276,6 +276,8 @@ def main():
     num_epochs = 10
 
     device = utils.init_distributed_device(args)
+
+    print(f"Is distributed training : {args.distributed}")
 
     if args.distributed:
         _logger.info(
@@ -324,7 +326,7 @@ def main():
 
     if utils.is_primary(args):
         _logger.info(
-            f'Model {safe_model_name(args.model)} created, param count:{sum([m.numel() for m in model.parameters()])}')
+            f'Model {safe_model_name(args.model_name)} created, param count:{sum([m.numel() for m in model.parameters()])}')
 
     if args.distributed:
         if utils.is_primary(args):

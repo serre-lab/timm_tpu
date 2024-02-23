@@ -213,13 +213,13 @@ class hConvGruResNet(nn.Module):
     def forward(self, x):
             x = self.conv0_1(x)
             x = self.activ(self.bninp_1(x))
-            print(f'Shape after conv1 {x.shape}')
+            #print(f'Shape after conv1 {x.shape}')
             x = self.conv0_2(x)
             x = self.activ(self.bninp_2(x))
 
             n = (x.shape[2])//2
             x = F.pad(x, (n,n,n,n), "constant", 0)
-            print(f'shape after padding {x.shape}')
+            #print(f'shape after padding {x.shape}')
             maxpool = nn.MaxPool2d(kernel_size = 3, stride = 2)
 
             x = maxpool(x)
@@ -253,9 +253,9 @@ class hConvGruResNet(nn.Module):
 
             x = self.conv4(state)
             x = self.activ(self.bnop_1(x))
-            print(f'before mean shape : {x.shape}')
+            #print(f'before mean shape : {x.shape}')
             x = torch.mean(x, axis = (2,3))
-            print(f'Penultimate shape : {x.shape}')
+            #print(f'Penultimate shape : {x.shape}')
             x = self.bnop_3(x)
             x = self.dense1(x)
 
