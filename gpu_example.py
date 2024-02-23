@@ -198,19 +198,20 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
+        
         loss.backward()
         if args.distributed:
             reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
             losses_m.update(reduced_loss.item(), input.size(0))
             acc1 = utils.reduce_tensor(acc1, args.world_size)
-            top1_m.update(acc1)
-            acc5 = utils.reduce_tensor(acc5, args.world_size)
-            top5_m.update(acc)
+            top1_m.update(acc1.item())
+            acc = utils.reduce_tensor(acc, args.world_size)
+            top5_m.update(acc.item())
 
         else:
             losses_m.update(loss.item(), input.size(0))
-            top1_m.update(acc1)
-            top5_m.update(acc)
+            top1_m.update(acc1.item())
+            top5_m.update(acc.item())
         optimizer.step()
         if lr_scheduler:
             lr_scheduler.step()
@@ -249,14 +250,14 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
             reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
             losses_m.update(reduced_loss.item(), input.size(0))
             acc1 = utils.reduce_tensor(acc1, args.world_size)
-            top1_m.update(acc1)
-            acc5 = utils.reduce_tensor(acc5, args.world_size)
-            top5_m.update(acc)
+            top1_m.update(acc1.item())
+            acc = utils.reduce_tensor(acc, args.world_size)
+            top5_m.update(acc.item())
 
         else:
             losses_m.update(loss.item(), input.size(0))
-            top1_m.update(acc1)
-            top5_m.update(acc)
+            top1_m.update(acc1.item())
+            top5_m.update(acc.item())
     
     if utils.is_primary(args):
         _logger.info(
