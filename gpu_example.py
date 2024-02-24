@@ -473,7 +473,7 @@ def main():
     updates_per_epoch = (len(loader_train) + args.grad_accum_steps - 1) // args.grad_accum_steps
     lr_scheduler, num_epochs = create_scheduler_v2(
         optimizer,
-        **scheduler_kwargs(args, decreasing_metric=eval_metrics),
+        **scheduler_kwargs(args),
         updates_per_epoch=updates_per_epoch,
     )
     
