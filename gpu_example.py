@@ -264,7 +264,6 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
                         f'Train: {epoch} '
                         f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
                         f'Accuracy: {top1_m.avg:#.3g} top 5 {top5_m.avg:#.3g}'
-                        f'LR: {lr:.3e}  '
                 )
     
     return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
