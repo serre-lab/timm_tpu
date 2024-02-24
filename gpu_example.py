@@ -44,7 +44,7 @@ parser.add_argument('--batch_size', type = int, default = 128)
 parser.add_argument('--dataset_download', default = False)
 parser.add_argument('--validation_batch_size', type = int, default = 128)
 parser.add_argument('--checkpoint-hist', default = 10, type = int)
-
+parser.add_argument('--resume', default = False, type = bool)
 
 ## model parameters
 parser.add_argument('--model_name', help = 'name of the model', default = 'resnet50')
