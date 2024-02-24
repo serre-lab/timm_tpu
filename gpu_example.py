@@ -45,6 +45,7 @@ parser.add_argument('--dataset_download', default = False)
 parser.add_argument('--validation_batch_size', type = int, default = 128)
 parser.add_argument('--checkpoint-hist', default = 10, type = int)
 
+
 ## model parameters
 parser.add_argument('--model_name', help = 'name of the model', default = 'resnet50')
 parser.add_argument('--pretrained', default = True)
@@ -62,7 +63,7 @@ parser.add_argument('--dist-bn', type=str, default='reduce',
                    help='Distribute BatchNorm stats between nodes after each epoch ("broadcast", "reduce", or "")')
 parser.add_argument('--split-bn', action='store_true',
                    help='Enable separate BN layers per augmentation split.')
-parser.add_argument('--grad_accum_steps', default = 2)
+parser.add_argument('--grad-accum-steps', default = 1)
 parser.add_argument('--log_interval', default = 100)
 
 parser.add_argument('--opt', default='sgd', type=str, metavar='OPTIMIZER',
@@ -235,8 +236,6 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
     top1_m = utils.AverageMeter()
     top5_m = utils.AverageMeter()
 
-    lrl = [param_parser['lr'] for param_parser in optimizer.param_groups]
-    lr = sum(lrl) / len(lrl)
 
     for input, target in tqdm(val_dataloader):
         input, target = input.to(device), target.to(device)
@@ -429,7 +428,26 @@ def main():
         device=device,
         )
     
+    #optimizer = create_optimizer_v2(
+    #    model,
+    #    **optimizer_kwargs(cfg=args),
+    #    **args.opt_kwargs,
+    #)
+
     optimizer = torch.optim.SGD(model.parameters(), lr = 0.01, momentum = 0.9)
+    
+    loss_scaler = None
+    # optionally resume from a checkpoint
+    resume_epoch = None
+    if args.resume:
+        resume_epoch = resume_checkpoint(
+            model,
+            args.resume,
+            optimizer=None if args.no_resume_opt else optimizer,
+            loss_scaler=None if args.no_resume_opt else loss_scaler,
+            log_info=utils.is_primary(args),
+        )
+
 
     ## Can be made adaptable to BCE and other losses check pytorch_image_models repo
     if args.smoothing:
@@ -438,7 +456,7 @@ def main():
         validate_loss_fn = nn.CrossEntropyLoss().to(device)
     validate_loss_fn = nn.CrossEntropyLoss().to(device)
 
-    eval_metrics = "cross_entropy"
+    eval_metrics = "loss"
 
     model = model.to(device)
 
@@ -452,13 +470,25 @@ def main():
         max_history = args.checkpoint_hist
     )
 
-    #optimizer = create_optimizer_v2(
-    #    model,
-    #    **optimizer_kwargs(cfg=args),
-    #    **args.opt_kwargs,
-    #)
-
+    updates_per_epoch = (len(loader_train) + args.grad_accum_steps - 1) // args.grad_accum_steps
+    lr_scheduler, num_epochs = create_scheduler_v2(
+        optimizer,
+        **scheduler_kwargs(args, decreasing_metric=eval_metrics),
+        updates_per_epoch=updates_per_epoch,
+    )
+    
     start_epoch = 0
+    if args.start_epoch is not None:
+        # a specified start_epoch will always override the resume epoch
+        start_epoch = args.start_epoch
+    elif resume_epoch is not None:
+        start_epoch = resume_epoch
+    if lr_scheduler is not None and start_epoch > 0:
+        if args.sched_on_updates:
+            lr_scheduler.step_update(start_epoch * updates_per_epoch)
+        else:
+            lr_scheduler.step(start_epoch)
+    
     for epoch in range(start_epoch, num_epochs):
         
         if hasattr(dataset_train, 'set_epoch'):
