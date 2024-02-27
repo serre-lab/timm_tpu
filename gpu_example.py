@@ -192,7 +192,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
     metric_logger = sl_utils.MetricLogger(delimiter = ' ')
     header = 'TRAIN epoch: [{}]'.format(epoch)
     optimizer.zero_grad()
-    for i, (input, target) in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
+    for i, (input, target) in enumerate(tqdm(train_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
         if isinstance(output, (tuple, list)):
@@ -229,7 +229,7 @@ def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
     header = 'EVAL epoch: [{}]'.format(epoch)
-    for i, (input, target) in enumerate(metric_logger.log_every(val_dataloader, 1, header)):
+    for i, (input, target) in enumerate(tqdm(val_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
         if isinstance(output, (tuple, list)):
