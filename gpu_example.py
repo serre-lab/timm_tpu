@@ -212,8 +212,11 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             metric_logger.update(top1_accuracy = acc1.item())
             metric_logger.update(top5_accuracy = acc.item()) 
         optimizer.step() 
-        print(optimizer.param_groups)
-        lr = [param_group['lr'] for param_group in optimizer.param_groups][0] #current Learning rate
+        # print(optimizer.param_groups)
+        lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
+        lr = sum(lrl)//len(lrl)
+        if utils.is_primary(args):
+            print(len(lrl), lrl[0], lrl[-1])
         if lr_scheduler:
             lr_scheduler.step()     
         if utils.is_primary(args) and log_writer!=None:
