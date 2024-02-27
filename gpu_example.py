@@ -268,7 +268,7 @@ def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
 def main():
 
     num_epochs = 10
-
+    log_writer = None
     device = utils.init_distributed_device(args)
     if utils.is_primary(args):
         print(f"Is distributed training : {args.distributed}")
@@ -495,8 +495,8 @@ def main():
         if utils.is_primary(args) and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
-        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
-        val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device)
+        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, log_writer)
+        val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
         if utils.is_primary(args) and log_writer is not None:
             log_writer.flush()
