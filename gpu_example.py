@@ -50,7 +50,7 @@ parser.add_argument('--resume', default = False, type = bool)
 parser.add_argument('--start-epoch', default = 0, type = int)
 
 ## model parameters
-parser.add_argument('--model_name', help = 'name of the model', default = 'resnet50')
+parser.add_argument('--model', help = 'name of the model', default = 'resnet50')
 parser.add_argument('--pretrained', default = True)
 parser.add_argument('--initial_checkpoint', default = None)
 parser.add_argument('--num_classes', default = 1000)
@@ -306,7 +306,7 @@ def main():
 
     ## load custom model
     model = create_model(
-        args.model_name,
+        args.model,
         pretrained=args.pretrained,
         in_chans=in_chans,
         num_classes=args.num_classes,
@@ -323,7 +323,7 @@ def main():
 
     if utils.is_primary(args):
         _logger.info(
-            f'Model {safe_model_name(args.model_name)} created, param count:{sum([m.numel() for m in model.parameters()])}')
+            f'Model {safe_model_name(args.model)} created, param count:{sum([m.numel() for m in model.parameters()])}')
 
     if args.distributed:
         if utils.is_primary(args):
@@ -453,7 +453,7 @@ def main():
 
     if args.output:
         os.makedirs(args.output, exist_ok=True)
-        
+
     saver = utils.CheckpointSaver(
         model = model,
         optimizer = optimizer,
