@@ -231,7 +231,7 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
-def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None, log_step):
+def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
     header = 'EVAL epoch: [{}]'.format(start_epoch)
