@@ -212,7 +212,8 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             metric_logger.update(top1_accuracy = acc1.item())
             metric_logger.update(top5_accuracy = acc.item()) 
         optimizer.step() 
-        lr = optimizer.param_groups['lr'] #current Learning rate
+        print(optimizer.param_groups)
+        lr = [param_group['lr'] for param_group in optimizer.param_groups][0] #current Learning rate
         if lr_scheduler:
             lr_scheduler.step()     
         if utils.is_primary(args) and log_writer!=None:
@@ -221,7 +222,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy, head = 'accuracy')
             log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
             log_writer.update(epoch = epoch, head = 'train')
-            log_writer.update(learning_rate = optimizer.lr, head = 'train')        
+            log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.train_loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
