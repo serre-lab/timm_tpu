@@ -451,18 +451,20 @@ def main():
 
     model = model.to(device)
 
-    if args.output:
-        os.makedirs(args.output, exist_ok=True)
+    saver = None
+    if utils.is_primary(args):
+        if args.output:
+            os.makedirs(args.output, exist_ok=True)
 
-    saver = utils.CheckpointSaver(
-        model = model,
-        optimizer = optimizer,
-        args = args,
-        checkpoint_dir = args.output,
-        recovery_dir = args.output,
-        decreasing = eval_metrics,
-        max_history = args.checkpoint_hist
-    )
+        saver = utils.CheckpointSaver(
+            model = model,
+            optimizer = optimizer,
+            args = args,
+            checkpoint_dir = args.output,
+            recovery_dir = args.output,
+            decreasing = eval_metrics,
+            max_history = args.checkpoint_hist
+        )
 
     updates_per_epoch = (len(loader_train) + args.grad_accum_steps - 1) // args.grad_accum_steps
     lr_scheduler, num_epochs = create_scheduler_v2(
@@ -499,7 +501,7 @@ def main():
         train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer, start_epoch)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
-        if saver is not None:
+        if utils.is_primary(args) and saver is not None:
             best_metric, best_epoch = saver.save_checkpoint(epoch, metric = val_stats['loss'])
 
         if utils.is_primary(args) and log_writer is not None:
