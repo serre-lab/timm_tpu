@@ -32,6 +32,8 @@ from timm.utils import ApexScaler, NativeScaler
 # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 from sltimmv2.models import *
+from sl_utils import WandBLogger
+import sl_utils
 
 
 parser = ArgumentParser(description = 'Pytorch Imagenet Training')
@@ -178,67 +180,56 @@ parser.add_argument('--use-multi-epochs-loader', action='store_true', default=Fa
                    help='use the multi-epochs-loader to save time at the beginning of every epoch')
 parser.add_argument('--log-wandb', action='store_true', default=False,
                    help='log training and validation metrics to wandb')
+parser.add_argument('--log-dir', type = str, default = 'logs', help = 'directory to store logs')
 
 args = parser.parse_args()
 
 _logger = logging.getLogger('train')
 
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None):
-
+def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, log_writer = None):
     model.train()
+    metric_logger = sl_utils.MetricLogger(delimiter = ' ')
+    header = 'TRAIN epoch: [{}]'.format(epoch)
     optimizer.zero_grad()
-    losses_m = utils.AverageMeter()
-    top1_m = utils.AverageMeter()
-    top5_m = utils.AverageMeter()
-
-
-    for input, target in tqdm(train_dataloader):
+    for i, (input, target) in enumerate(metric_logger.log_every(train_dataloader, 1, header)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
         if isinstance(output, (tuple, list)):
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
-        
         loss.backward()
         if args.distributed:
             reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
-            losses_m.update(reduced_loss.item(), input.size(0))
+            metric_logger.update(loss = reduced_loss.item())
             acc1 = utils.reduce_tensor(acc1, args.world_size)
-            top1_m.update(acc1.item())
+            metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
-            top5_m.update(acc.item())
-
+            metric_logger.update(top5_accuracy = acc.item())
         else:
-            losses_m.update(loss.item(), input.size(0))
-            top1_m.update(acc1.item())
-            top5_m.update(acc.item())
+            metric_logger.update(loss = loss.item())
+            metric_logger.update(top1_accuracy = acc1.item())
+            metric_logger.update(top5_accuracy = acc.item()) 
         optimizer.step()
         if lr_scheduler:
-            lr_scheduler.step()
-        
+            lr_scheduler.step()      
         lrl = [param_group['lr'] for param_group in optimizer.param_groups]
         lr = sum(lrl) / len(lrl)
+        if utils.is_primary(args) and log_writer!=None:
+            log_writer.set_step(i)
+            log_writer.update(train_loss = metric_logger.loss, head = 'loss')
+            log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy, head = 'accuracy')
+            log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
+            log_writer.update(epoch = epoch, head = 'train')
+            log_writer.update(learning_rate = lr, head = 'train')        
+    return OrderedDict([('loss', metric_logger.train_loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
-        if utils.is_primary(args):
-            _logger.info(
-                            f'Train: {epoch} '
-                            f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                            f'Accuracy: {top1_m.avg:#.3g} top 5 {top5_m.avg:#.3g}'
-                            f'LR: {lr:.3e}  '
-                        )
-    return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
-
-def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
-    
+def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
     model.eval()
-    losses_m = utils.AverageMeter()
-    top1_m = utils.AverageMeter()
-    top5_m = utils.AverageMeter()
-
-
-    for input, target in tqdm(val_dataloader):
+    metric_logger = sl_utils.MetricLogger(delimiter="  ")
+    header = 'EVAL epoch: [{}]'.format(epoch)
+    for i, (input, target) in enumerate(metric_logger.log_every(val_dataloader, 1, header)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
         if isinstance(output, (tuple, list)):
@@ -248,25 +239,22 @@ def validate(model, epoch, val_dataloader , loss_fn, optimizer, device):
         loss.backward()
         if args.distributed:
             reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
-            losses_m.update(reduced_loss.item(), input.size(0))
+            metric_logger.update(loss = reduced_loss.item())
             acc1 = utils.reduce_tensor(acc1, args.world_size)
-            top1_m.update(acc1.item())
+            metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
-            top5_m.update(acc.item())
-
+            metric_logger.update(top5_accuracy = acc.item())
         else:
-            losses_m.update(loss.item(), input.size(0))
-            top1_m.update(acc1.item())
-            top5_m.update(acc.item())
-    
-    if utils.is_primary(args):
-        _logger.info(
-                        f'Train: {epoch} '
-                        f'Loss: {losses_m.val:#.3g} ({losses_m.avg:#.3g})  '
-                        f'Accuracy: {top1_m.avg:#.3g} top 5 {top5_m.avg:#.3g}'
-                )
-    
-    return OrderedDict([('loss', losses_m.avg), ('top1', top1_m.avg), ('top5', top5_m.avg)])
+            metric_logger.update(loss = loss.item())
+            metric_logger.update(top1_accuracy = acc1.item())
+            metric_logger.update(top5_accuracy = acc.item())
+    if utils.is_primary(args) and log_writer!=None:
+        log_writer.set_step(i)
+        log_writer.update(val_loss = metric_logger.loss.avg, head = 'val')
+        log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.avg, head = 'val')
+        log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.avg, heaad = 'val')
+        log_writer.update(epoch = epoch, head = 'val')
+    return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
 ## main function
@@ -276,9 +264,6 @@ def main():
     num_epochs = 10
 
     device = utils.init_distributed_device(args)
-
-    
-
     if utils.is_primary(args):
         print(f"Is distributed training : {args.distributed}")
         if args.distributed:
@@ -286,11 +271,15 @@ def main():
                 'Training in distributed mode with multiple processes, 1 device per process.'
                 f'Process {args.rank}, total {args.world_size}, device {args.device}.')
         else:
-            _logger.info(f'Training with a single process on 1 device ({args.device}).')
-    
+            _logger.info(f'Training with a single process on 1 device ({args.device}).') 
+        
+        if args.log_wandb and args.log_dir != None:
+            os.makedirs(args.log_dir, exist_ok = True)
+            log_writer = WandBLogger(log_dir = args.log_dir , args = args)
+        else:
+            log_writer = None
+
     assert args.rank >= 0
-
-
     dataset_train = create_dataset(
             args.dataset,
             root=args.data_dir,
@@ -403,14 +392,12 @@ def main():
         # worker_seeding=args.worker_seeding,
     )
 
-
     ##irrelevant
     eval_workers = args.workers
     if args.val_split:
         if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
             # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
             eval_workers = min(2, args.workers)
-
 
     loader_eval = create_loader(
         dataset_eval,
@@ -477,6 +464,8 @@ def main():
         updates_per_epoch=updates_per_epoch,
     )
     
+    num_training_steps_per_epoch = len(dataset_train)//args.batch_size//args.world_size
+
     start_epoch = 0
     if args.start_epoch is not None:
         # a specified start_epoch will always override the resume epoch
@@ -496,8 +485,14 @@ def main():
         elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
             loader_train.sampler.set_epoch(epoch)
 
-        train_metrics = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
-        val_metrics   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
+        if log_writer is not None:
+            log_writer.set_step(epoch * num_training_steps_per_epoch)
+
+        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
+        val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
+
+        if log_writer is not None:
+            log_writer.flush()
 
 
 if __name__ == '__main__':

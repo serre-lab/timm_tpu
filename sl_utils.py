@@ -432,4 +432,34 @@ def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
+
+
+
+class WandBLogger(object):
+    def __init__(self, log_dir, args=None):
+        self.args = args
+        import tempfile
+        self.writer = wandb.init(project="hgruimagenet", 
+                            entity="serrelab",
+                            dir=tempfile.gettempdir(),
+                            config=args)
+        self.step = 0
+
+    def set_step(self, step=None):
+        if step is not None:
+            self.step = step
+        else:
+            self.step += 1
+        # self.writer.log({}, commit=True)
+
+    def update(self, head='scalar', step=None, commit=False, **kwargs):
+        for k, v in kwargs.items():
+            if v is None:
+                continue
+            self.writer.log({head + "/" + k: v}, step = self.step if step is None else step, commit=commit)
+
+    def flush(self):
+        # self.writer.flush()
+        pass
+
     
