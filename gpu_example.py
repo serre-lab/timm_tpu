@@ -211,18 +211,17 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             metric_logger.update(loss = loss.item())
             metric_logger.update(top1_accuracy = acc1.item())
             metric_logger.update(top5_accuracy = acc.item()) 
-        optimizer.step()
+        optimizer.step() 
+        lr = optimizer.param_groups['lr'] #current Learning rate
         if lr_scheduler:
-            lr_scheduler.step()      
-        lrl = [param_group['lr'] for param_group in optimizer.param_groups]
-        lr = sum(lrl) / len(lrl)
+            lr_scheduler.step()     
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(i)
             log_writer.update(train_loss = metric_logger.loss, head = 'loss')
             log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy, head = 'accuracy')
             log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
             log_writer.update(epoch = epoch, head = 'train')
-            log_writer.update(learning_rate = lr, head = 'train')        
+            log_writer.update(learning_rate = optimizer.lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.train_loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
@@ -484,14 +483,15 @@ def main():
                 dataset_train.set_epoch(epoch)
         elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
             loader_train.sampler.set_epoch(epoch)
+        
 
-        if log_writer is not None:
+        if utils.is_primary() and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
         train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
 
-        if log_writer is not None:
+        if utils.is_primary() and log_writer is not None:
             log_writer.flush()
 
 
