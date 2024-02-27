@@ -220,7 +220,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         
         if lr_scheduler:
             lr_scheduler.step()  
-               
+
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(i)
             log_writer.update(train_loss = metric_logger.loss, head = 'loss')
@@ -230,7 +230,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
-def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
+def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
     header = 'EVAL epoch: [{}]'.format(epoch)
