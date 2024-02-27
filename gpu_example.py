@@ -187,10 +187,10 @@ args = parser.parse_args()
 _logger = logging.getLogger('train')
 
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, log_writer = None, start_epoch = 0):
+def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, log_writer = None):
     model.train()
     metric_logger = sl_utils.MetricLogger(delimiter = ' ')
-    header = 'TRAIN epoch: [{}]'.format(epoch)
+    header = 'TRAIN epoch: [{}]'.format(start_epoch)
     optimizer.zero_grad()
     for i, (input, target) in enumerate(tqdm(train_dataloader)):
         input, target = input.to(device), target.to(device)
@@ -224,7 +224,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             log_writer.update(train_loss = reduced_loss.item(), head = 'train')
             log_writer.update(train_top1_accuracy = acc1.item(), head = 'train')
             log_writer.update(train_top5_accuracy = acc.item(), head = 'train')
-            log_writer.update(epoch = epoch, head = 'train')
+            log_writer.update(epoch = start_epoch, head = 'train')
             log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
@@ -498,7 +498,7 @@ def main():
         if utils.is_primary(args) and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
-        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer, start_epoch)
+        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
         if utils.is_primary(args) and saver is not None:
