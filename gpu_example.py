@@ -224,9 +224,9 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
 
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(start_epoch + i)
-            log_writer.update(train_loss = metric_logger.loss, head = 'loss')
-            log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy, head = 'accuracy')
-            log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
+            log_writer.update(train_loss = reduced_loss.item(), head = 'loss')
+            log_writer.update(train_top1_accuracy = acc1.item(), head = 'accuracy')
+            log_writer.update(train_top5_accuracy = acc.item(), head = 'accuracy')
             log_writer.update(epoch = epoch, head = 'train')
             log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
