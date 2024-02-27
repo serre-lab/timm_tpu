@@ -168,7 +168,7 @@ parser.add_argument('--synchronize-step', action='store_true', default=False,
                    help='torch.cuda.synchronize() end of each step')
 parser.add_argument('--pin-mem', action='store_true', default=False,
                    help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
-parser.add_argument('--output', default='', type=str, metavar='PATH',
+parser.add_argument('--output', default='checkpoint', type=str, metavar='PATH',
                    help='path to output folder (default: none, current dir)')
 parser.add_argument('--experiment', default='', type=str, metavar='NAME',
                    help='name of train experiment, name of sub-folder for output')
@@ -215,9 +215,6 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         # print(optimizer.param_groups)
         lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
         lr = sum(lrl)//len(lrl)
-        if utils.is_primary(args):
-            print(len(lrl), lrl[0], lrl[-1])
-        
         start_step = start_epoch*len(train_dataloader)
         if lr_scheduler:
             lr_scheduler.step(start_step + i)  
@@ -454,6 +451,9 @@ def main():
 
     model = model.to(device)
 
+    if args.output:
+        os.makedirs(args.output, exist_ok=True)
+        
     saver = utils.CheckpointSaver(
         model = model,
         optimizer = optimizer,
@@ -498,6 +498,9 @@ def main():
 
         train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer, start_epoch)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
+
+        if saver is not None:
+            best_metric, best_epoch = saver.save_checkpoint(epoch, metric = val_stats['loss'])
 
         if utils.is_primary(args) and log_writer is not None:
             log_writer.flush()
