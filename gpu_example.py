@@ -217,8 +217,10 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         lr = sum(lrl)//len(lrl)
         if utils.is_primary(args):
             print(len(lrl), lrl[0], lrl[-1])
+        
         if lr_scheduler:
-            lr_scheduler.step()     
+            lr_scheduler.step()  
+               
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(i)
             log_writer.update(train_loss = metric_logger.loss, head = 'loss')
@@ -226,7 +228,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
             log_writer.update(epoch = epoch, head = 'train')
             log_writer.update(learning_rate = lr, head = 'train')        
-    return OrderedDict([('loss', metric_logger.train_loss.avg), ('top1', metric_logger.train_top1_accuracy.avg), ('top5', metric_logger.train_top5_accuracy.avg)])
+    return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
     model.eval()
@@ -257,7 +259,7 @@ def validate(model, epoch, val_dataloader , loss_fn, device, log_writer):
         log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.avg, head = 'val')
         log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.avg, heaad = 'val')
         log_writer.update(epoch = epoch, head = 'val')
-    return OrderedDict([('loss', metric_logger.val_loss.avg), ('top1', metric_logger.val_top1_accuracy.avg), ('top5', metric_logger.val_top5_accuracy.avg)])
+    return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
 ## main function
