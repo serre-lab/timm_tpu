@@ -219,6 +219,8 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         
         if lr_scheduler:
             lr_scheduler.step(start_step + i)  
+
+        metric_logger.synchronize_between_processes()
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(start_step + i)
             log_writer.update(train_loss = loss.item(), head = 'train')
@@ -229,11 +231,11 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
-def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None):
+def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None, log_step):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
     header = 'EVAL epoch: [{}]'.format(start_epoch)
-    start_step = start_epoch*len(val_dataloader)
+    start_step = log_step
     for i, (input, target) in enumerate(tqdm(val_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
@@ -253,8 +255,10 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
             metric_logger.update(loss = loss.item())
             metric_logger.update(top1_accuracy = acc1.item())
             metric_logger.update(top5_accuracy = acc.item())
+
+    metric_logger.synchronize_between_processes()
     if utils.is_primary(args) and log_writer!=None:
-        log_writer.set_step(start_step + i)
+        log_writer.set_step(None)
         log_writer.update(val_loss = loss.item(), head = 'val')
         log_writer.update(val_top1_accuracy = acc1.item(), head = 'val')
         log_writer.update(val_top5_accuracy =acc.item(), heaad = 'val')
