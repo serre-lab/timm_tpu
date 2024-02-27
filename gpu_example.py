@@ -187,7 +187,7 @@ args = parser.parse_args()
 _logger = logging.getLogger('train')
 
 ## train for one epoch
-def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, log_writer = None):
+def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler = None, log_writer = None, start_epoch = 0):
     model.train()
     metric_logger = sl_utils.MetricLogger(delimiter = ' ')
     header = 'TRAIN epoch: [{}]'.format(epoch)
@@ -218,11 +218,12 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
         if utils.is_primary(args):
             print(len(lrl), lrl[0], lrl[-1])
         
+        start_step = start_epoch*len(train_dataloader)
         if lr_scheduler:
-            lr_scheduler.step()  
+            lr_scheduler.step(start_step + i)  
 
         if utils.is_primary(args) and log_writer!=None:
-            log_writer.set_step(i)
+            log_writer.set_step(start_epoch + i)
             log_writer.update(train_loss = metric_logger.loss, head = 'loss')
             log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy, head = 'accuracy')
             log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy, heaad = 'accuracy')
@@ -495,7 +496,7 @@ def main():
         if utils.is_primary(args) and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
-        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer)
+        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer, start_epoch)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
         if utils.is_primary(args) and log_writer is not None:
