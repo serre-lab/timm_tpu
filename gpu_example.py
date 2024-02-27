@@ -495,7 +495,7 @@ def main():
         if utils.is_primary(args) and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
-        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, log_writer)
+        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler, log_writer)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
         if utils.is_primary(args) and log_writer is not None:
