@@ -230,6 +230,7 @@ def train_one_epoch(model, epoch, train_dataloader, loss_fn, optimizer, device, 
             log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
+
 def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
@@ -495,7 +496,7 @@ def main():
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
         train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
-        val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
+        val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device)
 
         if utils.is_primary(args) and log_writer is not None:
             log_writer.flush()
