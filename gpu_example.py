@@ -485,13 +485,13 @@ def main():
             loader_train.sampler.set_epoch(epoch)
         
 
-        if utils.is_primary() and  log_writer is not None:
+        if utils.is_primary(args) and  log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
         train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, optimizer, device)
 
-        if utils.is_primary() and log_writer is not None:
+        if utils.is_primary(args) and log_writer is not None:
             log_writer.flush()
 
 
