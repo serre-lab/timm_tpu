@@ -191,6 +191,7 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
     model.train()
     metric_logger = sl_utils.MetricLogger(delimiter = ' ')
     header = 'TRAIN epoch: [{}]'.format(start_epoch)
+    start_step = start_epoch*len(train_dataloader)
     optimizer.zero_grad()
     for i, (input, target) in enumerate(tqdm(train_dataloader)):
         input, target = input.to(device), target.to(device)
@@ -201,8 +202,8 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         loss.backward()
         if args.distributed:
-            reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
-            metric_logger.update(loss = reduced_loss.item())
+            loss = utils.reduce_tensor(loss.data, args.world_size)
+            metric_logger.update(loss = loss.item())
             acc1 = utils.reduce_tensor(acc1, args.world_size)
             metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
@@ -215,13 +216,12 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         # print(optimizer.param_groups)
         lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
         lr = sum(lrl)//len(lrl)
-        start_step = start_epoch*len(train_dataloader)
+        
         if lr_scheduler:
             lr_scheduler.step(start_step + i)  
-
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(start_step + i)
-            log_writer.update(train_loss = reduced_loss.item(), head = 'train')
+            log_writer.update(train_loss = loss.item(), head = 'train')
             log_writer.update(train_top1_accuracy = acc1.item(), head = 'train')
             log_writer.update(train_top5_accuracy = acc.item(), head = 'train')
             log_writer.update(epoch = start_epoch, head = 'train')
@@ -229,10 +229,11 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
-def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
+def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
-    header = 'EVAL epoch: [{}]'.format(epoch)
+    header = 'EVAL epoch: [{}]'.format(start_epoch)
+    start_step = start_epoch*len(val_dataloader)
     for i, (input, target) in enumerate(tqdm(val_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
@@ -242,8 +243,8 @@ def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         loss.backward()
         if args.distributed:
-            reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
-            metric_logger.update(loss = reduced_loss.item())
+            loss = utils.reduce_tensor(loss.data, args.world_size)
+            metric_logger.update(loss = loss.item())
             acc1 = utils.reduce_tensor(acc1, args.world_size)
             metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
@@ -253,11 +254,11 @@ def validate(model, epoch, val_dataloader , loss_fn, device, log_writer = None):
             metric_logger.update(top1_accuracy = acc1.item())
             metric_logger.update(top5_accuracy = acc.item())
     if utils.is_primary(args) and log_writer!=None:
-        log_writer.set_step(i)
-        log_writer.update(val_loss = metric_logger.loss.avg, head = 'val')
-        log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.avg, head = 'val')
-        log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.avg, heaad = 'val')
-        log_writer.update(epoch = epoch, head = 'val')
+        log_writer.set_step(start_step + i)
+        log_writer.update(val_loss = loss.item(), head = 'val')
+        log_writer.update(val_top1_accuracy = acc1.item(), head = 'val')
+        log_writer.update(val_top5_accuracy =acc.item(), heaad = 'val')
+        log_writer.update(epoch = start_epoch, head = 'val')
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
