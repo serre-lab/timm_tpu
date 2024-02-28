@@ -215,7 +215,7 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         optimizer.step() 
         # print(optimizer.param_groups)
         lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
-        lr = sum(lrl)//len(lrl)
+        lr = lrl[-1]
         
         if lr_scheduler:
             lr_scheduler.step(start_step + i)  
@@ -235,7 +235,7 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
     header = 'EVAL epoch: [{}]'.format(start_epoch)
-    start_step = log_step
+    #start_step = log_step
     for i, (input, target) in enumerate(tqdm(val_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
