@@ -131,7 +131,7 @@ class hConvGru(nn.Module):
     def __init__(self, timesteps=8, filt_size = 9):
             super().__init__()
             
-            self.num_classes = 2
+            self.num_classes = 1000
             self.hidden_size = 16 ## previous gpu implementation had hidden_size = 25
             self.kernel_size = filt_size
             self.timesteps = timesteps
@@ -171,7 +171,7 @@ class hConvGruResNet(nn.Module):
     def __init__(self):
             super().__init__()
         
-            self.num_classes = 2
+            self.num_classes = 1000
             self.hidden_size = 64 
             self.kernel_size = 3
             self.timesteps = 8
