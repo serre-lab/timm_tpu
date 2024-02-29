@@ -196,12 +196,12 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
     for i, (input, target) in enumerate(tqdm(train_dataloader)):
         input, target = input.to(device), target.to(device)
         output  = model(input)
-        if utils.is_primary(args):
-            print(output.shape)
+        # if utils.is_primary(args):
+        #     print(output.shape)
         if isinstance(output, (tuple, list)):
             output = output[0]
-        if utils.is_primary(args):
-            print(output.shape, target.shape)
+        # if utils.is_primary(args):
+        #     print(output.shape, target.shape)
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
         loss.backward()
