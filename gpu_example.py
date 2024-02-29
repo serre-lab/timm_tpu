@@ -449,7 +449,7 @@ def main():
     if args.smoothing:
         train_loss_fn = LabelSmoothingCrossEntropy(smoothing = args.smoothing).to(device)
     else:
-        validate_loss_fn = nn.CrossEntropyLoss().to(device)
+        train_loss_fn = nn.CrossEntropyLoss().to(device)
     validate_loss_fn = nn.CrossEntropyLoss().to(device)
 
     eval_metrics = "loss"
