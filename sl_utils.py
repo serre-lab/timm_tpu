@@ -2,7 +2,7 @@ import os
 import builtins
 from collections import defaultdict, deque
 import datetime
-from timm.utils import get_state_dict
+from timm.utils import get_state_dict, is_primary
 from torch.utils.data._utils.collate import default_collate
 from pathlib import Path
 import torch
@@ -439,7 +439,7 @@ class WandBLogger(object):
     def __init__(self, log_dir, args=None):
         self.args = args
         import tempfile
-        self.writer = wandb.init(project="hgruimagenet", 
+        self.writer = wandb.init(project="hgru_imagenet_ILSVRC2012", 
                             entity="serrelab",
                             dir=tempfile.gettempdir(),
                             config=args)
@@ -462,4 +462,19 @@ class WandBLogger(object):
         # self.writer.flush()
         pass
 
-    
+
+
+def accuracy(output, target, args, topk=(1,)):
+    """Computes the accuracy over the k top predictions for the specified values of k"""
+    maxk = min(max(topk), output.size()[1])
+    batch_size = target.size(0)
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.reshape(1, -1).expand_as(pred))
+    # if is_primary(args):
+    #     print(pred.shape)
+    #     print(pred[:,0])
+    #     print(target[0])
+    #     print(correct.shape)
+    #     print(correct[:, :5])
+    return [correct[:min(k, maxk)].reshape(-1).float().sum(0) / batch_size for k in topk]

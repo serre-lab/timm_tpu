@@ -47,6 +47,7 @@ parser.add_argument('--dataset_download', default = False)
 parser.add_argument('--validation_batch_size', type = int, default = 128)
 parser.add_argument('--checkpoint-hist', default = 10, type = int)
 parser.add_argument('--resume', default = False, type = bool)
+parser.add_argument('--epochs', default = 100, type = int)
 parser.add_argument('--start-epoch', default = 0, type = int)
 
 ## model parameters
@@ -92,6 +93,31 @@ parser.add_argument('--sched', type=str, default='cosine', metavar='SCHEDULER',
                    help='LR scheduler (default: "step"')
 parser.add_argument('--lr', type=float, default=None, metavar='LR',
                    help='learning rate, overrides lr-base if set (default: None)')
+parser.add_argument('--lr-base', type=float, default=0.4, metavar='LR',
+                   help='base learning rate: lr = lr_base * global_batch_size / base_size')
+parser.add_argument('--warmup_epochs', type = int, default = 40)
+parser.add_argument('--lr-base-size', type=int, default=256, metavar='DIV',
+                   help='base learning rate batch size (divisor, default: 256).')
+parser.add_argument('--lr-base-scale', type=str, default='', metavar='SCALE',
+                   help='base learning rate vs batch_size scaling ("linear", "sqrt", based on opt if empty)')
+parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
+                   help='learning rate noise on/off epoch percentages')
+parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
+                   help='learning rate noise limit percent (default: 0.67)')
+parser.add_argument('--lr-noise-std', type=float, default=1.0, metavar='STDDEV',
+                   help='learning rate noise std-dev (default: 1.0)')
+parser.add_argument('--lr-cycle-mul', type=float, default=1.0, metavar='MULT',
+                   help='learning rate cycle len multiplier (default: 1.0)')
+parser.add_argument('--lr-cycle-decay', type=float, default=0.5, metavar='MULT',
+                   help='amount to decay each learning rate cycle (default: 0.5)')
+parser.add_argument('--lr-cycle-limit', type=int, default=1, metavar='N',
+                   help='learning rate cycle limit, cycles enabled if > 1')
+parser.add_argument('--lr-k-decay', type=float, default=1.0,
+                   help='learning rate k-decay for cosine/poly (default: 1.0)')
+parser.add_argument('--warmup-lr', type=float, default=1e-5, metavar='LR',
+                   help='warmup learning rate (default: 1e-5)')
+parser.add_argument('--min-lr', type=float, default=0, metavar='LR',)
+parser.add_argument('--sched-on-updates', default = True)
 
 # parser.add_argument('Augmentation and regularization parameters')
 parser.add_argument('--no-aug', action='store_true', default=False,
@@ -140,7 +166,7 @@ parser.add_argument('--mixup-mode', type=str, default='batch',
                    help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 parser.add_argument('--mixup-off-epoch', default=0, type=int, metavar='N',
                    help='Turn off mixup after this epoch, disabled if 0 (default: 0)')
-parser.add_argument('--smoothing', type=float, default=0.1,
+parser.add_argument('--smoothing', type=float, default=0.01,
                    help='Label smoothing (default: 0.1)')
 parser.add_argument('--train-interpolation', type=str, default='random',
                    help='Training interpolation (random, bilinear, bicubic default: "random")')
@@ -182,6 +208,7 @@ parser.add_argument('--log-wandb', action='store_true', default=False,
                    help='log training and validation metrics to wandb')
 parser.add_argument('--log-dir', type = str, default = 'logs', help = 'directory to store logs')
 
+
 args = parser.parse_args()
 
 _logger = logging.getLogger('train')
@@ -197,13 +224,17 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         input, target = input.to(device), target.to(device)
         output  = model(input)
         # if utils.is_primary(args):
-        #     print(output.shape)
+        #     print(output.shape, target.shape)
+        #     print(output[0].shape)
+        #     print(output[0], target[0])
         if isinstance(output, (tuple, list)):
             output = output[0]
         # if utils.is_primary(args):
         #     print(output.shape, target.shape)
         loss = loss_fn(output, target)
-        acc1, acc = utils.accuracy(output, target, topk = (1,5))
+        acc1, acc = sl_utils.accuracy(output, target, args, topk = (1,5))
+        # if utils.is_primary(args):
+        #     print(acc1.item(), acc.item(), f'world size : {args.world_size}')
         loss.backward()
         if args.distributed:
             loss = utils.reduce_tensor(loss.data, args.world_size)
@@ -212,6 +243,8 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
             metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
             metric_logger.update(top5_accuracy = acc.item())
+            # if utils.is_primary(args):
+            #     print(f'After reduce tensor {acc.item()} {acc1.item()}')
         else:
             metric_logger.update(loss = loss.item())
             metric_logger.update(top1_accuracy = acc1.item())
@@ -225,11 +258,11 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
             lr_scheduler.step(start_step + i)  
 
         metric_logger.synchronize_between_processes()
-        if utils.is_primary(args) and log_writer!=None:
+        if utils.is_primary(args) and log_writer!=None and (start_step + i)%args.log_interval == 0:
             log_writer.set_step(start_step + i)
-            log_writer.update(train_loss = loss.item(), head = 'train')
-            log_writer.update(train_top1_accuracy = acc1.item(), head = 'train')
-            log_writer.update(train_top5_accuracy = acc.item(), head = 'train')
+            log_writer.update(train_loss = metric_logger.loss.avg, head = 'train')
+            log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy.avg, head = 'train')
+            log_writer.update(train_top5_accuracy =metric_logger.top5_accuracy.avg, head = 'train')
             log_writer.update(epoch = start_epoch, head = 'train')
             log_writer.update(learning_rate = lr, head = 'train')        
     return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
@@ -247,6 +280,8 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
+        if utils.is_primary(args):
+            print(acc1.item(), acc.item(), f'world size : {args.world_size}')
         loss.backward()
         if args.distributed:
             loss = utils.reduce_tensor(loss.data, args.world_size)
@@ -255,6 +290,7 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
             metric_logger.update(top1_accuracy = acc1.item())
             acc = utils.reduce_tensor(acc, args.world_size)
             metric_logger.update(top5_accuracy = acc.item())
+            print(f'After reduce tensor {acc.item()} {acc1.item()}')
         else:
             metric_logger.update(loss = loss.item())
             metric_logger.update(top1_accuracy = acc1.item())
@@ -274,7 +310,7 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
 
 def main():
 
-    num_epochs = 10
+    num_epochs = args.epochs
     log_writer = None
     device = utils.init_distributed_device(args)
     if utils.is_primary(args):
@@ -479,8 +515,13 @@ def main():
     lr_scheduler, num_epochs = create_scheduler_v2(
         optimizer,
         **scheduler_kwargs(args),
-        updates_per_epoch=updates_per_epoch,
+        updates_per_epoch=updates_per_epoch
     )
+
+    # lr_scheduler = utils.cosine_scheduler(
+    #     args.lr, args.min_lr, args.epochs, num_training_steps_per_epoch,
+    #     warmup_epochs=args.warmup_epochs, warmup_steps=args.warmup_steps,
+    # )
     
     num_training_steps_per_epoch = len(dataset_train)//args.batch_size//args.world_size
 
