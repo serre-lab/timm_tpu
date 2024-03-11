@@ -257,7 +257,7 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
     warmup_iters = warmup_epochs * niter_per_ep
     if warmup_steps > 0:
         warmup_iters = warmup_steps
-    print("Set warmup steps = %d" % warmup_iters)
+    # print("Set warmup steps = %d" % warmup_iters)
     if warmup_epochs > 0:
         warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iters)
 
@@ -267,7 +267,7 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
 
     schedule = np.concatenate((warmup_schedule, schedule))
 
-    print("lenSched", len(schedule), "epochs:", epochs, "niter_per_ep:", niter_per_ep)
+    # print("lenSched", len(schedule), "epochs:", epochs, "niter_per_ep:", niter_per_ep)
     assert len(schedule) == epochs * niter_per_ep
     return schedule
 
@@ -307,7 +307,7 @@ class SmoothedValue(object):
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
-        self.count = int(t[0])
+        self.count = float(t[0])
         self.total = t[1]
 
     @property

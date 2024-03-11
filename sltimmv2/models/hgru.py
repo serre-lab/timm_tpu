@@ -131,7 +131,7 @@ class hConvGru(nn.Module):
     def __init__(self, timesteps=8, filt_size = 9):
             super().__init__()
             
-            self.num_classes = 1000
+            self.num_classes = 2
             self.hidden_size = 16 ## previous gpu implementation had hidden_size = 25
             self.kernel_size = filt_size
             self.timesteps = timesteps
@@ -206,6 +206,7 @@ class hConvGruResNet(nn.Module):
             self.bnop_3 = nn.BatchNorm1d(self.hidden_size *16*2, momentum=0.9, eps=1e-5, dtype=self.dtype)
             #self.conv6 = nn.Conv(2048, [1, 1], dtype=self.dtype)
             self.dense1 = nn.Linear(self.hidden_size *16*2, self.num_classes)
+            self.softmax = nn.Softmax(dim = 1)
 
             self.activ = nn.ReLU()
 
@@ -258,6 +259,7 @@ class hConvGruResNet(nn.Module):
             #print(f'Penultimate shape : {x.shape}')
             x = self.bnop_3(x)
             x = self.dense1(x)
+            # x = self.softmax(x)
 
             return x
     

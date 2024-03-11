@@ -26,7 +26,7 @@ from timm.layers import convert_splitbn_model, convert_sync_batchnorm, set_fast_
 from timm.loss import JsdCrossEntropy, SoftTargetCrossEntropy, BinaryCrossEntropy, LabelSmoothingCrossEntropy
 from timm.models import create_model, safe_model_name, resume_checkpoint, load_checkpoint, model_parameters
 from timm.optim import create_optimizer_v2, optimizer_kwargs
-# from timm.scheduler import create_scheduler_v2, scheduler_kwargs
+from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
 # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -93,9 +93,9 @@ parser.add_argument('--sched', type=str, default='cosine', metavar='SCHEDULER',
                    help='LR scheduler (default: "step"')
 parser.add_argument('--sched-on-updates', action='store_true', default=False,
                    help='Apply LR scheduler step on update instead of epoch end.')
-parser.add_argument('--lr', type=float, default=0.4, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                    help='learning rate, overrides lr-base if set (default: None)')
-parser.add_argument('--lr-base', type=float, default=0.4, metavar='LR',
+parser.add_argument('--lr-base', type=float, default=0.01, metavar='LR',
                    help='base learning rate: lr = lr_base * global_batch_size / base_size')
 parser.add_argument('--lr-base-size', type=int, default=128, metavar='DIV',
                    help='base learning rate batch size (divisor, default: 256).')
@@ -115,7 +115,7 @@ parser.add_argument('--lr-cycle-limit', type=int, default=1, metavar='N',
                    help='learning rate cycle limit, cycles enabled if > 1')
 parser.add_argument('--lr-k-decay', type=float, default=1.0,
                    help='learning rate k-decay for cosine/poly (default: 1.0)')
-parser.add_argument('--warmup-lr', type=float, default=1e-3, metavar='LR',
+parser.add_argument('--warmup-lr', type=float, default=1e-5, metavar='LR',
                    help='warmup learning rate (default: 1e-5)')
 parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
                    help='lower lr bound for cyclic schedulers that hit 0 (default: 0)')
@@ -127,13 +127,13 @@ parser.add_argument('--epoch-repeats', type=float, default=0., metavar='N',
 #                    help='manual epoch number (useful on restarts)')
 parser.add_argument('--decay-milestones', default=[90, 180, 270], type=int, nargs='+', metavar="MILESTONES",
                    help='list of decay epoch indices for multistep lr. must be increasing')
-parser.add_argument('--decay-epochs', type=float, default=10, metavar='N',
+parser.add_argument('--decay-epochs', type=float, default=90, metavar='N',
                    help='epoch interval to decay LR')
 parser.add_argument('--warmup-epochs', type=int, default=5, metavar='N',
                    help='epochs to warmup LR, if scheduler supports')
 parser.add_argument('--warmup-prefix', action='store_true', default=False,
                    help='Exclude warmup period from decay schedule.'),
-parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
+parser.add_argument('--cooldown-epochs', type=int, default=0, metavar='N',
                    help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
 parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
                    help='patience epochs for Plateau LR scheduler (default: 10)')
@@ -234,63 +234,6 @@ args = parser.parse_args()
 
 _logger = logging.getLogger('train')
 
-## train for one epoch
-def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, device, lr_scheduler_values = None, lr_scheduler = None, log_writer = None):
-    model.train()
-    metric_logger = sl_utils.MetricLogger(delimiter = ' ')
-    header = 'TRAIN epoch: [{}]'.format(start_epoch)
-    start_step = start_epoch*len(train_dataloader)
-    for i, (input,target) in enumerate(tqdm(train_dataloader)):
-
-        optimizer.zero_grad()
-        input, target = input.to(device), target.to(device)
-        output  = model(input)
-        if isinstance(output, (tuple, list)):
-            output = output[0]
-        loss = loss_fn(output, target)
-        acc1, acc = sl_utils.accuracy(output, target, args, topk = (1,5))
-        loss.backward()
-        # if args.distributed:
-        #     # loss = utils.reduce_tensor(loss.data, args.world_size)
-        #     # print(loss.item())
-        #     metric_logger.update(loss = loss.item())
-        #     # acc1 = utils.reduce_tensor(acc1, args.world_size)
-        #     metric_logger.update(top1_accuracy = acc1.item())
-        #     # acc = utils.reduce_tensor(acc, args.world_size)
-        #     metric_logger.update(top5_accuracy = acc.item())
-        # else:
-        if utils.is_primary(args):
-            metric_logger.update(loss = loss.item())
-            metric_logger.update(top1_accuracy = acc1.item())
-            metric_logger.update(top5_accuracy = acc.item()) 
-        
-        # # print(optimizer.param_groups)
-        # lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
-        # lr = lrl[-1]
-        # if utils.is_primary(args) and lr_scheduler:
-        #     lr_scheduler.step(start_step + i)  
-        
-        if len(lr_scheduler_values)>0:
-            for k, param_group in enumerate(optimizer.param_groups):
-                param_group["lr"] = lr_scheduler_values[start_step+i] #* param_group['lr_scale']
-        
-        optimizer.step() 
-        if args.distributed:
-            metric_logger.synchronize_between_processes()
-        
-        if utils.is_primary(args) and log_writer!=None and ((start_step + i)%args.log_interval == 0):
-            # print('Writing Logs')
-            print('In log interval')
-            log_writer.set_step(None)
-            log_writer.update(train_loss = metric_logger.loss.global_avg, head = 'train')
-            log_writer.update(train_top1_accuracy = metric_logger.top1_accuracy.global_avg, head = 'train')
-            log_writer.update(train_top5_accuracy = metric_logger.top5_accuracy.global_avg, head = 'train')
-            log_writer.update(epoch = start_epoch, head = 'train')
-            log_writer.update(commit=True, learning_rate = lr_scheduler_values[start_step+i], head = 'train')        
-        
-    return OrderedDict([('loss', metric_logger.loss.global_avg), ('top1', metric_logger.top1_accuracy.global_avg), ('top5', metric_logger.top5_accuracy.global_avg)])
-
-
 def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None):
     model.eval()
     metric_logger = sl_utils.MetricLogger(delimiter="  ")
@@ -303,31 +246,33 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
             output = output[0]
         loss = loss_fn(output, target)
         acc1, acc = utils.accuracy(output, target, topk = (1,5))
+        print(output.shape)
+        print(output[0])
+        break
         # if utils.is_primary(args):
         #     print(acc1.item(), acc.item(), f'world size : {args.world_size}')
-        loss.backward()
-        # if args.distributed:
-        #     loss = utils.reduce_tensor(loss.data, args.world_size)
-        #     metric_logger.update(loss = loss.item())
-        #     acc1 = utils.reduce_tensor(acc1, args.world_size)
-        #     metric_logger.update(top1_accuracy = acc1.item())
-        #     acc = utils.reduce_tensor(acc, args.world_size)
-        #     metric_logger.update(top5_accuracy = acc.item())
-        #     print(f'After reduce tensor {acc.item()} {acc1.item()}')
-        # else:
-        metric_logger.update(loss = loss.item())
-        metric_logger.update(top1_accuracy = acc1.item())
-        metric_logger.update(top5_accuracy = acc.item())
-        if args.distributed:
-            metric_logger.synchronize_between_processes()
-        
-        if utils.is_primary(args) and log_writer!=None:
-            log_writer.set_step(None)
-            log_writer.update(val_loss = metric_logger.loss.global_avg, head = 'val')
-            log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.global_avg, head = 'val')
-            log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.global_avg, heaad = 'val')
-            log_writer.update(commit=True, epoch = start_epoch, head = 'val')
-    return OrderedDict([('loss', metric_logger.loss.global_avg), ('top1', metric_logger.top1_accuracy.global_avg), ('top5', metric_logger.top5_accuracy.global_avg)])
+        # loss.backward()
+    #     if args.distributed:
+    #         loss = utils.reduce_tensor(loss.data, args.world_size)
+    #         metric_logger.update(loss = loss.item())
+    #         acc1 = utils.reduce_tensor(acc1, args.world_size)
+    #         metric_logger.update(top1_accuracy = acc1.item())
+    #         acc = utils.reduce_tensor(acc, args.world_size)
+    #         metric_logger.update(top5_accuracy = acc.item())
+    #         print(f'After reduce tensor {acc.item()} {acc1.item()}')
+    #     else:
+    #         metric_logger.update(loss = loss.item())
+    #         metric_logger.update(top1_accuracy = acc1.item())
+    #         metric_logger.update(top5_accuracy = acc.item())
+
+    # metric_logger.synchronize_between_processes()
+    # if utils.is_primary(args) and log_writer!=None:
+    #     log_writer.set_step(None)
+    #     log_writer.update(val_loss = loss.item(), head = 'val')
+    #     log_writer.update(val_top1_accuracy = acc1.item(), head = 'val')
+    #     log_writer.update(val_top5_accuracy =acc.item(), heaad = 'val')
+    #     log_writer.update(epoch = start_epoch, head = 'val')
+    return None #OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
 ## main function
@@ -346,11 +291,11 @@ def main():
         else:
             _logger.info(f'Training with a single process on 1 device ({args.device}).') 
         
-        if args.log_wandb and args.log_dir != None:
-            os.makedirs(args.log_dir, exist_ok = True)
-            log_writer = WandBLogger(log_dir = args.log_dir , args = args)
-        else:
-            log_writer = None
+        # if args.log_wandb and args.log_dir != None:
+        #     os.makedirs(args.log_dir, exist_ok = True)
+        #     log_writer = WandBLogger(log_dir = args.log_dir , args = args)
+        # else:
+        #     log_writer = None
 
     assert args.rank >= 0
     dataset_train = create_dataset(
@@ -511,7 +456,7 @@ def main():
 
 
     ## Can be made adaptable to BCE and other losses check pytorch_image_models repo
-    if args.smoothing:
+    if args.smoothing>0:
         train_loss_fn = LabelSmoothingCrossEntropy(smoothing = args.smoothing).to(device)
     else:
         train_loss_fn = nn.CrossEntropyLoss().to(device)
@@ -538,7 +483,8 @@ def main():
 
     num_training_steps_per_epoch = len(dataset_train)//args.batch_size//args.world_size
     updates_per_epoch = (len(loader_train) + args.grad_accum_steps - 1) // args.grad_accum_steps
-    # print(updates_per_epoch)
+    print(num_training_steps_per_epoch)
+    
     lr_scheduler = None
     # lr_scheduler, num_epochs = create_scheduler_v2(
     #     optimizer,
@@ -551,7 +497,7 @@ def main():
         args.lr, args.min_lr, args.epochs, num_training_steps_per_epoch,
         warmup_epochs=args.warmup_epochs,
     )
-
+    
     start_epoch = 0
     if args.start_epoch is not None:
         # a specified start_epoch will always override the resume epoch
@@ -570,19 +516,19 @@ def main():
                 dataset_train.set_epoch(epoch)
         elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
             loader_train.sampler.set_epoch(epoch)
+        
 
         if utils.is_primary(args) and  log_writer is not None:
-            # print(epoch * num_training_steps_per_epoch)
             log_writer.set_step(epoch * num_training_steps_per_epoch)
 
-        train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler_values, lr_scheduler, log_writer)
+        # train_stats = train_one_epoch(model, epoch, loader_train, train_loss_fn, optimizer, device, lr_scheduler_values, lr_scheduler, log_writer)
         val_stats   = validate(model, epoch, loader_eval, validate_loss_fn, device, log_writer)
 
-        if utils.is_primary(args) and saver is not None:
-            best_metric, best_epoch = saver.save_checkpoint(epoch, metric = val_stats['loss'])
+        # if utils.is_primary(args) and saver is not None:
+        #     best_metric, best_epoch = saver.save_checkpoint(epoch, metric = val_stats['loss'])
 
-        if utils.is_primary(args) and log_writer is not None:
-            log_writer.flush()
+        # if utils.is_primary(args) and log_writer is not None:
+        #     log_writer.flush()
 
 
 if __name__ == '__main__':
