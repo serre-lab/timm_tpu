@@ -250,18 +250,17 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
         loss = loss_fn(output, target)
         acc1, acc = sl_utils.accuracy(output, target, args, topk = (1,5))
         loss.backward()
-        # if args.distributed:
-        #     # loss = utils.reduce_tensor(loss.data, args.world_size)
-        #     # print(loss.item())
-        #     metric_logger.update(loss = loss.item())
-        #     # acc1 = utils.reduce_tensor(acc1, args.world_size)
-        #     metric_logger.update(top1_accuracy = acc1.item())
-        #     # acc = utils.reduce_tensor(acc, args.world_size)
-        #     metric_logger.update(top5_accuracy = acc.item())
-        # else:
-        metric_logger.update(loss = loss.item())
-        metric_logger.update(top1_accuracy = acc1.item())
-        metric_logger.update(top5_accuracy = acc.item()) 
+        if args.distributed:
+            loss = utils.reduce_tensor(loss.data, args.world_size)
+            metric_logger.update(loss = loss.item())
+            acc1 = utils.reduce_tensor(acc1, args.world_size)
+            metric_logger.update(top1_accuracy = acc1.item())
+            acc = utils.reduce_tensor(acc, args.world_size)
+            metric_logger.update(top5_accuracy = acc.item())
+        else:
+            metric_logger.update(loss = loss.item())
+            metric_logger.update(top1_accuracy = acc1.item())
+            metric_logger.update(top5_accuracy = acc.item()) 
         
         # # print(optimizer.param_groups)
         # lrl = [param_group['lr'] for param_group in optimizer.param_groups] #current Learning rate
@@ -274,9 +273,9 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
                 param_group["lr"] = lr_scheduler_values[start_step+i] #* param_group['lr_scale']
         
         optimizer.step() 
-        if args.distributed and utils.is_primary(args):
-            metric_logger.synchronize_between_processes()
+        metric_logger.synchronize_between_processes()
         
+
         if utils.is_primary(args) and log_writer!=None and ((start_step + i)%args.log_interval == 0):
             # print('Writing Logs')
             print('In log interval')
@@ -287,7 +286,7 @@ def train_one_epoch(model, start_epoch, train_dataloader, loss_fn, optimizer, de
             log_writer.update(epoch = start_epoch, head = 'train')
             log_writer.update(commit=True, learning_rate = lr_scheduler_values[start_step+i], head = 'train')        
         
-    return OrderedDict([('loss', metric_logger.loss.global_avg), ('top1', metric_logger.top1_accuracy.global_avg), ('top5', metric_logger.top5_accuracy.global_avg)])
+    return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
 def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = None):
@@ -305,29 +304,27 @@ def validate(model, start_epoch, val_dataloader , loss_fn, device, log_writer = 
         # if utils.is_primary(args):
         #     print(acc1.item(), acc.item(), f'world size : {args.world_size}')
         loss.backward()
-        # if args.distributed:
-        #     loss = utils.reduce_tensor(loss.data, args.world_size)
-        #     metric_logger.update(loss = loss.item())
-        #     acc1 = utils.reduce_tensor(acc1, args.world_size)
-        #     metric_logger.update(top1_accuracy = acc1.item())
-        #     acc = utils.reduce_tensor(acc, args.world_size)
-        #     metric_logger.update(top5_accuracy = acc.item())
-        #     print(f'After reduce tensor {acc.item()} {acc1.item()}')
-        # else:
-        metric_logger.update(loss = loss.item())
-        metric_logger.update(top1_accuracy = acc1.item())
-        metric_logger.update(top5_accuracy = acc.item())
-        
-        if args.distributed and utils.is_prmiary(args):
-            metric_logger.synchronize_between_processes()
+        if args.distributed:
+            loss = utils.reduce_tensor(loss.data, args.world_size)
+            metric_logger.update(loss = loss.item())
+            acc1 = utils.reduce_tensor(acc1, args.world_size)
+            metric_logger.update(top1_accuracy = acc1.item())
+            acc = utils.reduce_tensor(acc, args.world_size)
+            metric_logger.update(top5_accuracy = acc.item())
+            print(f'After reduce tensor {acc.item()} {acc1.item()}')
+        else:
+            metric_logger.update(loss = loss.item())
+            metric_logger.update(top1_accuracy = acc1.item())
+            metric_logger.update(top5_accuracy = acc.item())
+        metric_logger.synchronize_between_processes()
         
         if utils.is_primary(args) and log_writer!=None:
             log_writer.set_step(None)
-            log_writer.update(val_loss = metric_logger.loss.global_avg, head = 'val')
-            log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.global_avg, head = 'val')
-            log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.global_avg, heaad = 'val')
+            log_writer.update(val_loss = metric_logger.loss.avg, head = 'val')
+            log_writer.update(val_top1_accuracy = metric_logger.top1_accuracy.avg, head = 'val')
+            log_writer.update(val_top5_accuracy = metric_logger.top5_accuracy.avg, heaad = 'val')
             log_writer.update(commit=True, epoch = start_epoch, head = 'val')
-    return OrderedDict([('loss', metric_logger.loss.global_avg), ('top1', metric_logger.top1_accuracy.global_avg), ('top5', metric_logger.top5_accuracy.global_avg)])
+    return OrderedDict([('loss', metric_logger.loss.avg), ('top1', metric_logger.top1_accuracy.avg), ('top5', metric_logger.top5_accuracy.avg)])
 
 
 ## main function
@@ -565,7 +562,7 @@ def main():
             lr_scheduler.step(start_epoch)
     
     for epoch in range(start_epoch, num_epochs):
-        print('training started')
+        
         if hasattr(dataset_train, 'set_epoch'):
                 dataset_train.set_epoch(epoch)
         elif args.distributed and hasattr(loader_train.sampler, 'set_epoch'):
